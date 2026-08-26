@@ -36,20 +36,21 @@ public class Archive {
         return null;
     }
 
-    /** 解析搜索结果: title\u0001creator\u0001identifier\u0001PENDING */
+    /** 解析搜索结果: title\u0001creator\u0001identifier\u0001IA */
     public static String[] parse(String json) throws Exception {
         JSONObject resp = new JSONObject(json);
         JSONArray docs = resp.getJSONObject("response").getJSONArray("docs");
         String[] out = new String[docs.length()];
         for (int i = 0; i < docs.length(); i++) {
             JSONObject d = docs.getJSONObject(i);
-            String title = d.has("title") ? (d.getJSONArray("title").getString(0)) : "?";
-            String creator = d.has("creator")
-                ? d.getJSONArray("creator").getString(0) : "Internet Archive";
-            out[i] = title + "\u0001" + creator + "\u0001IA:"
-                + d.getString("identifier") + "\u0001IA";
+            out[i] = field(d, "title") + "\u0001" + field(d, "creator")
+                + "\u0001IA:" + d.getString("identifier") + "\u0001IA";
         }
         return out;
+    }
+    static String field(JSONObject d, String key) {
+        try { return d.getJSONArray(key).getString(0); }
+        catch (Exception e) { return d.optString(key, "?"); }
     }
 
     static String httpGet(String url) throws Exception {

@@ -8,7 +8,7 @@ javac -source 1.8 -target 1.8 -bootclasspath ~/apkbuild/android.jar \
   -classpath ~/apkbuild/android.jar -d classes src/com/musicfusion/app/*.java > javac.log 2>&1 \
   || { echo 编译失败; tail -15 javac.log; exit 1; }
 dx --dex --output=classes.dex classes
-aapt package -f -M AndroidManifest.xml -I ~/apkbuild/android.jar -F base.apk
+aapt package -f -M AndroidManifest.xml -S res -I ~/apkbuild/android.jar -F base.apk
 aapt add base.apk classes.dex
 [ -f assets/stations.json ] && aapt add base.apk assets/stations.json
 [ -f assets/ic_launcher.png ] && aapt add base.apk assets/ic_launcher.png
