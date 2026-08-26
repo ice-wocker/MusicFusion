@@ -14,8 +14,22 @@ import org.json.JSONObject;
  */
 public class Openverse {
 
+    static final java.util.LinkedHashMap<String, String[]> cache =
+        new java.util.LinkedHashMap<String, String[]>(16, 0.75f, true) {
+            protected boolean removeEldest(java.util.Map.Entry<String, String[]> e) {
+                return size() > 20; }};
+
     /** 返回统一行: title\u0001creator(license)\u0001duration\u0001url */
     public static String[] search(String query, int page) throws Exception {
+        String ck = query + "#" + page;
+        String[] hit = cache.get(ck);
+        if (hit != null) return hit;
+        String[] r = doSearch(query, page);
+        cache.put(ck, r);
+        return r;
+    }
+
+    static String[] doSearch(String query, int page) throws Exception {
         String url = "https://api.openverse.org/v1/audio/?q="
             + URLEncoder.encode(query, "UTF-8")
             + "&page_size=20&page=" + page + "&license_type=all";

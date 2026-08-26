@@ -183,6 +183,21 @@ public class MainActivity extends Activity {
         });
         resultList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> p, View v, int pos, long id) {
+                if (pos < rows.size() && "H".equals(rows.get(pos)[3])) {
+                    String t = (String) rows.get(pos)[0];
+                    if (t.startsWith("搜索: ")) {
+                        String q = t.substring(4);
+                        java.util.Set<String> h = new java.util.HashSet<>(
+                            getSharedPreferences("mf", MODE_PRIVATE)
+                                .getStringSet("search_history", new java.util.HashSet<String>()));
+                        h.remove(q);
+                        getSharedPreferences("mf", MODE_PRIVATE).edit()
+                            .putStringSet("search_history", h).apply();
+                        toast("已删除历史: " + q);
+                        showSearchHistory();
+                    }
+                    return true;
+                }
                 itemMenu(pos); return true;
             }
         });
@@ -205,7 +220,7 @@ public class MainActivity extends Activity {
             public void onTextChanged(CharSequence c, int a, int b2, int d) {}
         });
 
-        setTab(0);
+        setTab(getSharedPreferences("mf", MODE_PRIVATE).getInt("last_tab", 0));
     }
 
     void addTab(LinearLayout parent, final int idx) {
@@ -352,6 +367,7 @@ public class MainActivity extends Activity {
 
     void setTab(int idx) {
         curTab = idx;
+        getSharedPreferences("mf", MODE_PRIVATE).edit().putInt("last_tab", idx).apply();
         for (int i = 0; i < tabsView.getChildCount(); i++) {
             View c = tabsView.getChildAt(i);
             Object tag = c.getTag();
@@ -522,15 +538,18 @@ public class MainActivity extends Activity {
         }});
     }
 
+    static org.json.JSONObject catalogCache;
     @SuppressWarnings("unchecked")
     void filterCatalog(String q, ArrayList<Object[]> out) {
         try {
+            if (catalogCache != null) { filterCatalogCached(q, out); return; }
             java.io.InputStream in = getAssets().open("stations.json");
             java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
             byte[] buf = new byte[8192]; int n;
             while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
             in.close();
             org.json.JSONObject rootJ = new org.json.JSONObject(bo.toString());
+            catalogCache = rootJ;
             org.json.JSONArray st = rootJ.getJSONArray("stations");
             String low = q.toLowerCase();
             for (int i = 0; i < st.length(); i++) {
@@ -544,6 +563,22 @@ public class MainActivity extends Activity {
                     cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps", u, "台"});
             }
         } catch (Exception e) { out.add(err("目录加载失败", e)); }
+    }
+    void filterCatalogCached(String q, ArrayList<Object[]> out) {
+        try {
+            org.json.JSONArray st = catalogCache.getJSONArray("stations");
+            String low = q.toLowerCase();
+            for (int i = 0; i < st.length(); i++) {
+                org.json.JSONObject s = st.getJSONObject(i);
+                String name = s.optString("n", "?"), cty = s.optString("c", ""),
+                    tag = s.optString("t", ""), u = s.optString("u", "");
+                if (!low.isEmpty() && !name.toLowerCase().contains(low)
+                    && !tag.toLowerCase().contains(low) && !cty.toLowerCase().contains(low))
+                    continue;
+                out.add(new Object[]{name,
+                    cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps", u, "台"});
+            }
+        } catch (Exception e) { out.add(err("目录过滤失败", e)); }
     }
 
     // ══════ 我的 ══════
@@ -766,8 +801,14 @@ public class MainActivity extends Activity {
         public Object getItem(int i) { return rows.get(i); }
         public long getItemId(int i) { return i; }
         public View getView(int pos, View cv, ViewGroup vg) {
-            LinearLayout l = new LinearLayout(MainActivity.this);
-            l.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout l;
+            if (cv instanceof LinearLayout) {
+                l = (LinearLayout) cv;
+                l.removeAllViews();
+            } else {
+                l = new LinearLayout(MainActivity.this);
+                l.setOrientation(LinearLayout.VERTICAL);
+            }
             l.setPadding(dp(12), dp(8), dp(12), dp(8));
             if (pos == playingPos) l.setBackgroundColor(C("#132a1c"));
             Object[] r = rows.get(pos);
