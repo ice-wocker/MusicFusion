@@ -13,9 +13,16 @@ public class Archive {
 
     /** collection:audio_music + etree(Live Music Archive) */
     public static String search(String query) throws Exception {
-        String q = URLEncoder.encode(
-            "(" + query + ") AND mediatype:(audio)", "UTF-8");
-        String url = "https://archive.org/advancedsearch.php?q=" + q
+        return searchCollection(query, null);
+    }
+
+    /** 指定IA专集搜索: etree(现场演出) / georgeblood(78rpm古董唱片) / audio_music */
+    public static String searchCollection(String query, String collection) throws Exception {
+        String q = "(" + query + ") AND mediatype:(audio)";
+        if (collection != null && !collection.isEmpty())
+            q += " AND collection:(" + collection + ")";
+        String url = "https://archive.org/advancedsearch.php?q="
+            + URLEncoder.encode(q, "UTF-8")
             + "&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator"
             + "&rows=20&page=1&output=json";
         return httpGet(url);
@@ -35,6 +42,29 @@ public class Archive {
         }
         return null;
     }
+
+    /** 按收藏浏览: etree现场/georgeblood 78转/musopen古典/librivoxaudio有声书 */
+    public static String searchByCollection(String collection, String extra) throws Exception {
+        String q = "collection:(" + collection + ") AND mediatype:(audio)";
+        if (extra != null && !extra.isEmpty())
+            q = "(" + URLEncoder.encode(extra, "UTF-8") + ") AND " + q;
+        String url = "https://archive.org/advancedsearch.php?q=" + q
+            + "&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator"
+            + "&rows=25&page=1&output=json&sort%5B%5D=downloads+desc";
+        return httpGet(url);
+    }
+
+    /** 乐库分类定义 {显示名, collection, 关键词} */
+    public static final String[][] CATALOGS = {
+        {"现场演出 Live", "etree", ""},
+        {"78转老唱片", "georgeblood", ""},
+        {"古典音乐", "musopen", ""},
+        {"有声书", "librivoxaudio", ""},
+        {"爵士现场", "etree", "jazz"},
+        {"摇滚现场", "etree", "rock"},
+        {"民谣现场", "etree", "folk"},
+        {"电子音乐", "audio_music", "electronic"},
+    };
 
     /** 解析搜索结果: title\u0001creator\u0001identifier\u0001IA */
     public static String[] parse(String json) throws Exception {

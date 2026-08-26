@@ -425,7 +425,19 @@ public class MainActivity extends Activity {
                 try {
                     for (String _l : Archive.parse(Archive.search(q))) {
                         String[] s = _l.split("\u0001");
-                        out.add(new Object[]{s[0], s[1] + " · 点按解析曲目", "IA:" + s[2], "档"});
+                        out.add(new Object[]{s[0], s[1] + " · 点按解析曲目", "IA:" + s[2], "档案"});
+                    }
+                } catch (Exception e) { /* 静默 */ }
+                try {
+                    for (String _l : Openverse.search(q, 1)) {
+                        String[] s = _l.split("\u0001");
+                        out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "CC"});
+                    }
+                } catch (Exception e) { /* 静默 */ }
+                try {
+                    for (String _l : Archive.parse(Archive.searchCollection(q, "etree"))) {
+                        String[] s = _l.split("\u0001");
+                        out.add(new Object[]{s[0], s[1] + " · 现场演出 · 点按解析", "IA:" + s[2], "现场"});
                     }
                 } catch (Exception e) { /* 静默 */ }
             }
@@ -467,7 +479,18 @@ public class MainActivity extends Activity {
         status("加载电台…");
         bg(new Runnable() { public void run() {
             final ArrayList<Object[]> out = new ArrayList<Object[]>();
-            out.add(new Object[]{"— SomaFM 精选频道 —", "非营利独立电台", "", "头"});
+            out.add(new Object[]{"— 公共电台直播 —", "公共广播/社区电台直链", "", "头"});
+            String[][] pub = {
+                {"Radio Paradise", "美国·独立策展混合电台", "https://stream.radioparadise.com/mp3-128"},
+                {"FIP", "法国·无广告综合音乐", "https://icecast.radiofrance.fr/fip-midfi.mp3"},
+                {"France Musique", "法国·古典/爵士", "https://icecast.radiofrance.fr/francemusique-midfi.mp3"},
+                {"WFMU Freeform", "美国·自由格式传奇电台", "https://stream0.wfmu.org/freeform-128k"},
+                {"KEXP", "美国·西雅图独立音乐", "https://kexp-mp3-128.streamguys1.com/kexp128.mp3"},
+                {"KCRW", "美国·洛杉矶公播", "https://kcrw.streamguys1.com/kcrw_192k_mp3_e24_internet_radio"},
+            };
+            for (String[] ch : pub)
+                out.add(new Object[]{ch[0], ch[1], ch[2], "台"});
+            out.add(new Object[]{"— SomaFM 精选频道 —", "非营利独立电台(24频道)", "", "头"});
             for (String[] ch : SomaFM.all())
                 out.add(new Object[]{ch[0], ch[1], ch[2], "台"});
             out.add(new Object[]{"— RadioBrowser 热门 —", "全球社区电台", "", "头"});
@@ -750,7 +773,11 @@ public class MainActivity extends Activity {
             Object[] r = rows.get(pos);
             boolean header = "头".equals(r[3]);
             TextView t1 = new TextView(MainActivity.this);
-            t1.setText((String) r[0]);
+            String srcTag = (String) r[3];
+            String prefix = "曲".equals(srcTag) ? "[Audius] " :
+                "CC".equals(srcTag) ? "[CC] " : "档案".equals(srcTag) ? "[档案] " :
+                "现场".equals(srcTag) ? "[现场] " : "台".equals(srcTag) ? "[电台] " : "";
+            t1.setText(prefix + r[0]);
             t1.setTextSize(header ? 12 : 13);
             t1.setTextColor(C(header ? C_DIM : (pos == playingPos ? C_GREEN : C_TXT)));
             t1.setTypeface(null, header ? Typeface.NORMAL : Typeface.BOLD);
