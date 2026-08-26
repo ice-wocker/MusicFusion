@@ -40,12 +40,19 @@ public class PlayerService extends Service implements
 
     @Override public void onCreate() {
         super.onCreate();
+        L10n.load(this);
         // 耳机拔出/蓝牙断开 → 自动暂停
         noisy = new android.content.BroadcastReceiver() {
             public void onReceive(Context c, Intent i) { toggle(); }
         };
-        registerReceiver(noisy, new IntentFilter(
-            AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+        try {
+            if (Build.VERSION.SDK_INT >= 33)
+                registerReceiver(noisy, new IntentFilter(
+                    AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+                    4 /* Context.RECEIVER_NOT_EXPORTED */);
+            else registerReceiver(noisy, new IntentFilter(
+                AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+        } catch (Exception ignored) {}
         // 媒体按钮(耳机线控/蓝牙)
         try {
             session = new android.media.session.MediaSession(this, "MusicFusion");
@@ -99,9 +106,9 @@ public class PlayerService extends Service implements
         if ("NEXT".equals(act)) { next(); return START_STICKY; }
         if ("PREV".equals(act)) { prev(); return START_STICKY; }
         if ("SHUFFLE".equals(act)) { shuffle = !shuffle;
-            MainActivity.onPlayState(nowPlaying, shuffle ? "随机开" : "顺序播"); return START_STICKY; }
+            MainActivity.onPlayState(nowPlaying, shuffle ? L10n.s("shuffle_on") : L10n.s("order")); return START_STICKY; }
         if ("REPEAT".equals(act)) { repeatMode = (repeatMode + 1) % 2;
-            MainActivity.onPlayState(nowPlaying, repeatMode == 1 ? "单曲循环" : "列表循环"); return START_STICKY; }
+            MainActivity.onPlayState(nowPlaying, repeatMode == 1 ? L10n.s("repeat_one") : L10n.s("repeat")); return START_STICKY; }
         if ("SEEK".equals(act)) {
             try { if (mp != null && mp.getDuration() > 0)
                 seek((int) (mp.getDuration() * i.getFloatExtra("frac", 0f)));
@@ -175,7 +182,7 @@ public class PlayerService extends Service implements
             mp.reset();
             mp.setDataSource(url);
             mp.prepareAsync();
-            MainActivity.onPlayState(nowPlaying, "缓冲");
+            MainActivity.onPlayState(nowPlaying, L10n.s("buffering"));
             MainActivity.onProgress(0, 0);
             showNotif(nowPlaying, "缓冲中");
         } catch (Exception e) {
@@ -199,9 +206,9 @@ public class PlayerService extends Service implements
         if (mp == null) return;
         try {
             if (mp.isPlaying()) { mp.pause();
-                MainActivity.onPlayState(nowPlaying, "已暂停"); }
+                MainActivity.onPlayState(nowPlaying, L10n.s("paused")); }
             else { mp.start();
-                MainActivity.onPlayState(nowPlaying, "播放中"); }
+                MainActivity.onPlayState(nowPlaying, L10n.s("playing")); }
         } catch (Exception ignored) {}
     }
 
@@ -218,7 +225,7 @@ public class PlayerService extends Service implements
     @Override public void onCompletion(MediaPlayer p) {
         if (repeatMode == 1) {
             try { p.seekTo(0); p.start();
-                MainActivity.onPlayState(nowPlaying, "单曲循环"); return; }
+                MainActivity.onPlayState(nowPlaying, L10n.s("repeat_one")); return; }
             catch (Exception ignored) {}
         }
         next();
@@ -227,11 +234,11 @@ public class PlayerService extends Service implements
     @Override public void onPrepared(MediaPlayer p) {
         p.start();
         if (speed != 1.0f) applySpeed();
-        MainActivity.onPlayState(nowPlaying, "播放中");
+        MainActivity.onPlayState(nowPlaying, L10n.s("playing"));
         showNotif(nowPlaying, "播放中 " + (queueIdx + 1) + "/" + queueUrl.size());
     }
     @Override public boolean onError(MediaPlayer p, int what, int extra) {
-        MainActivity.onPlayState(nowPlaying, "错误, 跳下一首");
+        MainActivity.onPlayState(nowPlaying, L10n.s("error"));
         next();
         return true;
     }

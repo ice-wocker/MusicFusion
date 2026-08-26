@@ -60,12 +60,13 @@ public class MainActivity extends Activity {
     boolean seeking = false;
     java.util.Timer searchTimer;
 
-    static final String[] TABS = {"首页", "搜索", "电台", "目录", "我的"};
+    static String[] TABS = {"首页", "搜索", "电台", "目录", "我的"};
     static MainActivity inst;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         inst = this;
+        L10n.load(this);
         lightTheme = getSharedPreferences("mf", MODE_PRIVATE)
             .getBoolean("light", false);
         installCrashHook();
@@ -87,7 +88,7 @@ public class MainActivity extends Activity {
         title.setTextColor(C(C_GREEN));
         head.addView(title, w(1));
         TextView gear = new TextView(this);
-        gear.setText("设置");
+        gear.setText(L10n.s("settings"));
         gear.setTextSize(13); gear.setTextColor(C(C_ACC));
         gear.setPadding(dp(10), dp(4), dp(2), dp(4));
         gear.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
@@ -104,7 +105,7 @@ public class MainActivity extends Activity {
         player.setPadding(dp(14), dp(10), dp(14), dp(10));
 
         nowBar = new TextView(this);
-        nowBar.setText("选择曲目开始播放");
+        nowBar.setText(L10n.s("not_playing"));
         nowBar.setTextSize(13); nowBar.setTextColor(C(C_TXT));
         nowBar.setTypeface(null, Typeface.BOLD);
         nowBar.setSingleLine(true);
@@ -159,7 +160,7 @@ public class MainActivity extends Activity {
         top.addView(player);
 
         searchBox = new EditText(this);
-        searchBox.setHint("搜索歌曲 / 歌手 / 电台");
+        searchBox.setHint(L10n.s("search_hint"));
         searchBox.setTextSize(14);
         searchBox.setTextColor(C(C_TXT));
         searchBox.setHintTextColor(C(C_DIM));
@@ -233,6 +234,8 @@ public class MainActivity extends Activity {
             public void onTextChanged(CharSequence c, int a, int b2, int d) {}
         });
 
+        TABS = new String[]{L10n.s("tab_home"), L10n.s("tab_search"),
+            L10n.s("tab_radio"), L10n.s("tab_catalog"), L10n.s("tab_mine")};
         setTab(getSharedPreferences("mf", MODE_PRIVATE).getInt("last_tab", 0));
     }
 
@@ -251,9 +254,9 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle("设置")
             .setItems(new String[]{
-                "睡眠定时", "播放倍速", "均衡器", "统计数据",
-                "浅色主题切换", "省流量模式(过滤高码率)",
-                "清除搜索历史", "关于与开源致谢"},
+                L10n.s("sleep"), L10n.s("speed"), L10n.s("equalizer"), L10n.s("stats"),
+                L10n.s("theme"), L10n.s("datasaver"),
+                L10n.s("clear_hist"), L10n.s("lang"), L10n.s("about")},
             new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
                     if (w == 0) sleepDialog();
@@ -276,11 +279,25 @@ public class MainActivity extends Activity {
                     } else if (w == 6) {
                         getSharedPreferences("mf", MODE_PRIVATE)
                             .edit().remove("search_history").apply();
-                        toast("已清除搜索历史");
+                        toast(L10n.s("clear_hist") + " OK");
+                    } else if (w == 7) {
+                        langDialog();
                     } else aboutDialog();
                 }
             }).show();
     }
+    void langDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle(L10n.s("lang"))
+            .setItems(new String[]{"中文", "English"}, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    getSharedPreferences("mf", MODE_PRIVATE)
+                        .edit().putInt("lang", w).apply();
+                    toast(w == 0 ? "已切换中文, 重启生效" : "Switched to English, restart to apply");
+                }
+            }).show();
+    }
+
     void sleepDialog() {
         new AlertDialog.Builder(this)
             .setTitle("睡眠定时")
@@ -349,10 +366,10 @@ public class MainActivity extends Activity {
     }
     void lyricsDialog() {
         String full = nowBar.getText().toString();
-        if (full.startsWith("选择")) { toast("先播放一首歌"); return; }
+        if (full.startsWith("选择")) { toast(L10n.s("not_playing")); return; }
         String t = full.contains(" · ") ? full.substring(full.indexOf(" · ") + 3) : full;
         final String track = t;
-        toast("查询歌词中…");
+        toast(L10n.s("lyr_query"));
         bg(new Runnable() { public void run() {
             String ly = null;
             try {
@@ -363,7 +380,7 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {}
             final String f = ly;
             ui(new Runnable() { public void run() {
-                if (f == null) toast("未找到歌词(LRCLIB)");
+                if (f == null) toast(L10n.s("lyr_none"));
                 else new AlertDialog.Builder(MainActivity.this)
                     .setTitle(track)
                     .setMessage(f.length() > 4000 ? f.substring(0, 4000) + "…" : f)
@@ -511,7 +528,7 @@ public class MainActivity extends Activity {
     }
 
     void doSearch(final String q) {
-        status("搜索中: " + q + " …");
+        status(L10n.s("searching") + q + " …");
         // 记录历史
         android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
         java.util.Set<String> h = new java.util.HashSet<String>(
@@ -570,7 +587,7 @@ public class MainActivity extends Activity {
             ui(new Runnable() { public void run() {
                 rows.clear(); rows.addAll(out);
                 adapter.notifyDataSetChanged();
-                status(rows.size() + " 条结果");
+                status(rows.size() + L10n.s("results"));
             }});
         }});
     }
@@ -817,7 +834,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(new String[]{
-                "收藏", "加入歌单", "下载到本机", "分享", "复制链接", "从收藏移除", "取消"},
+                L10n.s("fav"), L10n.s("add_pl"), L10n.s("download"), L10n.s("share"), L10n.s("copy"), L10n.s("unfav"), L10n.s("cancel")},
             new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
                     if (w == 1) { playlistPickDialog(title, sub, url); return; }
@@ -826,7 +843,7 @@ public class MainActivity extends Activity {
                         ArrayList<String> l = loadEntries(PREF_FAV);
                         String e = title + "\u0001" + sub + "\u0001" + url;
                         if (!l.contains(e)) { l.add(0, e); saveEntries(PREF_FAV, l); }
-                        toast("已收藏");
+                        toast(L10n.s("fav_done"));
                     } else if (w == 1) {
                         if (url.startsWith("http")) download(url, title);
                         else toast("请先播放解析直链");
@@ -843,7 +860,7 @@ public class MainActivity extends Activity {
                         ArrayList<String> l = loadEntries(PREF_FAV);
                         l.remove(title + "\u0001" + sub + "\u0001" + url);
                         saveEntries(PREF_FAV, l);
-                        toast("已移除");
+                        toast(L10n.s("fav_rm"));
                     }
                 }
             }).show();
@@ -854,28 +871,48 @@ public class MainActivity extends Activity {
             android.content.ClipboardManager cm = (android.content.ClipboardManager)
                 getSystemService(CLIPBOARD_SERVICE);
             cm.setPrimaryClip(android.content.ClipData.newPlainText("url", s));
-            toast("已复制链接");
+            toast(L10n.s("copied"));
         } catch (Exception e) { toast("复制失败"); }
     }
 
     void download(final String url, final String title) {
-        toast("后台下载中…");
+        toast("…");
         bg(new Runnable() { public void run() {
             try {
-                String safe = title.replaceAll("[\\\\/:*?\"<>|·—\\[\\]]", "_");
-                java.io.File dir = new java.io.File(
-                    android.os.Environment.getExternalStorageDirectory()
-                        .getPath() + "/Download/MusicFusion");
-                if (!dir.exists()) dir.mkdirs();
-                java.io.File out = new java.io.File(dir,
-                    safe.replaceAll("^[^\\w\\u4e00-\\u9fa5]+", "") + ".mp3");
+                String safe = title.replaceAll("[\\\\/:*?\"<>|·—\\[\\]]", "_")
+                    .replaceAll("^[^\\w\\u4e00-\\u9fa5]+", "") + ".mp3";
                 java.io.InputStream in = new java.net.URL(url).openStream();
-                java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
                 byte[] buf = new byte[65536]; int n; long total = 0;
-                while ((n = in.read(buf)) > 0) { fo.write(buf, 0, n); total += n; }
-                fo.close(); in.close();
-                toast("已下载 " + total / 1048576 + "MB: " + out.getName());
-            } catch (Exception e) { toast("下载失败: " + e.getMessage()); }
+                while ((n = in.read(buf)) > 0) { bo.write(buf, 0, n); total += n; }
+                in.close();
+                byte[] data = bo.toByteArray();
+                String where;
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentValues cv = new android.content.ContentValues();
+                    cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, safe);
+                    cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "audio/mpeg");
+                    android.net.Uri uri = getContentResolver().insert(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                    java.io.OutputStream os = getContentResolver().openOutputStream(uri);
+                    os.write(data); os.close();
+                    where = "Download/" + safe;
+                } else {
+                    java.io.File dir = new java.io.File(
+                        android.os.Environment.getExternalStorageDirectory()
+                            .getPath() + "/Download/MusicFusion");
+                    if (!dir.exists()) dir.mkdirs();
+                    java.io.File out = new java.io.File(dir, safe);
+                    java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+                    fo.write(data); fo.close();
+                    where = out.getAbsolutePath();
+                }
+                final String msg = L10n.s("dl_ok") + total / 1048576 + "MB: " + where;
+                ui(new Runnable() { public void run() { toast(msg); }});
+            } catch (Exception e) {
+                final String msg = L10n.s("dl_fail") + e.getMessage();
+                ui(new Runnable() { public void run() { toast(msg); }});
+            }
         }});
     }
 
@@ -883,7 +920,7 @@ public class MainActivity extends Activity {
     void playAt(final int pos) {
         if (pos >= rows.size()) return;
         final String url = (String) rows.get(pos)[2];
-        if (url == null || url.isEmpty()) { toast("该条目不可播放"); return; }
+        if (url == null || url.isEmpty()) { toast(L10n.s("no_url")); return; }
         if (url.startsWith("\u0001HIST:")) {
             searchBox.setText(url.substring(7));
             return;
@@ -934,7 +971,7 @@ public class MainActivity extends Activity {
             urls[i] = u == null ? "" : u;
             titles[i] = (String) rows.get(i)[0];
         }
-        if (urls[pos].isEmpty()) { toast("该条目不可播放"); return; }
+        if (urls[pos].isEmpty()) { toast(L10n.s("no_url")); return; }
         Intent i = new Intent(this, PlayerService.class);
         i.putExtra("urls", urls);
         i.putExtra("titles", titles);
