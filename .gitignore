@@ -1,0 +1,6 @@
+classes/
+*.apk
+!musicfusion.apk
+build/
+javac.log
+local.properties
