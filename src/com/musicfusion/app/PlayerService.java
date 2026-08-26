@@ -237,6 +237,7 @@ public class PlayerService extends Service implements
     }
 
     void showNotif(String title, String state) {
+        MusicWidget.update(this, title, state);
         try {
             NotificationManager nm = (NotificationManager)
                 getSystemService(NOTIFICATION_SERVICE);

@@ -31,7 +31,18 @@ import java.util.ArrayList;
  */
 public class MainActivity extends Activity {
 
+    static boolean lightTheme = false;
     static int C(String hex) {
+        if (lightTheme) {
+            if ("#0b0e14".equals(hex) || "#0d1117".equals(hex)) return Color.parseColor("#f6f8fa");
+            if ("#161c28".equals(hex) || "#10151d".equals(hex)) return Color.parseColor("#ffffff");
+            if ("#232c3d".equals(hex)) return Color.parseColor("#d0d7de");
+            if ("#e6edf3".equals(hex) || "#ffffff".equals(hex)) return Color.parseColor("#1f2328");
+            if ("#8b949e".equals(hex)) return Color.parseColor("#656d76");
+            if ("#000000".equals(hex)) return Color.parseColor("#ffffff");
+            if ("#aaaaaa".equals(hex)) return Color.parseColor("#57606a");
+            if ("#132a1c".equals(hex)) return Color.parseColor("#dafbe1");
+        }
         try { return Color.parseColor(hex); }
         catch (Throwable t) { return Color.GRAY; }
     }
@@ -55,6 +66,8 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         inst = this;
+        lightTheme = getSharedPreferences("mf", MODE_PRIVATE)
+            .getBoolean("light", false);
         installCrashHook();
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -239,6 +252,7 @@ public class MainActivity extends Activity {
             .setTitle("设置")
             .setItems(new String[]{
                 "睡眠定时", "播放倍速", "均衡器", "统计数据",
+                "浅色主题切换", "省流量模式(过滤高码率)",
                 "清除搜索历史", "关于与开源致谢"},
             new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
@@ -247,6 +261,19 @@ public class MainActivity extends Activity {
                     else if (w == 2) eqDialog();
                     else if (w == 3) statsDialog();
                     else if (w == 4) {
+                        boolean now = !getSharedPreferences("mf", MODE_PRIVATE)
+                            .getBoolean("light", false);
+                        getSharedPreferences("mf", MODE_PRIVATE)
+                            .edit().putBoolean("light", now).apply();
+                        toast(now ? "已切浅色, 重启生效" : "已切深色, 重启生效");
+                    } else if (w == 5) {
+                        boolean now = !getSharedPreferences("mf", MODE_PRIVATE)
+                            .getBoolean("datasaver", false);
+                        getSharedPreferences("mf", MODE_PRIVATE)
+                            .edit().putBoolean("datasaver", now).apply();
+                        toast(now ? "省流量模式开(过滤>128kbps电台)" : "省流量模式关");
+                        setTab(curTab);
+                    } else if (w == 6) {
                         getSharedPreferences("mf", MODE_PRIVATE)
                             .edit().remove("search_history").apply();
                         toast("已清除搜索历史");
@@ -622,6 +649,18 @@ public class MainActivity extends Activity {
     }
 
     static org.json.JSONObject catalogCache;
+    boolean dataSaver() {
+        return getSharedPreferences("mf", MODE_PRIVATE).getBoolean("datasaver", false);
+    }
+    boolean bitrateOk(String sub) {
+        if (!dataSaver() || sub == null) return true;
+        try {
+            int k = sub.indexOf("· ") ;
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(\\d+)kbps").matcher(sub);
+            return !m.find() || Integer.parseInt(m.group(1)) <= 128;
+        } catch (Exception e) { return true; }
+    }
     @SuppressWarnings("unchecked")
     void filterCatalog(String q, ArrayList<Object[]> out) {
         try {
@@ -642,8 +681,9 @@ public class MainActivity extends Activity {
                 if (!low.isEmpty() && !name.toLowerCase().contains(low)
                     && !tag.toLowerCase().contains(low) && !cty.toLowerCase().contains(low))
                     continue;
-                out.add(new Object[]{name,
-                    cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps", u, "台"});
+                String sub = cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps";
+                if (bitrateOk(sub))
+                    out.add(new Object[]{name, sub, u, "台"});
             }
         } catch (Exception e) { out.add(err("目录加载失败", e)); }
     }
@@ -658,8 +698,9 @@ public class MainActivity extends Activity {
                 if (!low.isEmpty() && !name.toLowerCase().contains(low)
                     && !tag.toLowerCase().contains(low) && !cty.toLowerCase().contains(low))
                     continue;
-                out.add(new Object[]{name,
-                    cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps", u, "台"});
+                String sub = cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps";
+                if (bitrateOk(sub))
+                    out.add(new Object[]{name, sub, u, "台"});
             }
         } catch (Exception e) { out.add(err("目录过滤失败", e)); }
     }
@@ -678,6 +719,15 @@ public class MainActivity extends Activity {
                 for (String e : loadEntries(PREF_FAV))
                     out.add(new Object[]{titleOf(e), subOf(e), urlOf(e), "藏"});
                 loadPlaylists(out);
+                out.add(new Object[]{"— 播放排行榜 Top10 —", "按本地播放次数", "", "头"});
+                for (Object[] tp : topPlayed())
+                    out.add(new Object[]{tp[0] + "  (" + tp[1] + "次)",
+                        "点按播放", tp[2], "榜"});
+                out.add(new Object[]{"— 已下载(本机) —", "Download/MusicFusion", "", "头"});
+                for (java.io.File f : downloadedFiles())
+                    out.add(new Object[]{f.getName().replace(".mp3", ""),
+                        (f.length() / 1048576) + "MB · 本机文件",
+                        f.getAbsolutePath(), "本"});
             } catch (Exception ignored) {}
             ui(new Runnable() { public void run() {
                 rows.clear(); rows.addAll(out);
@@ -703,6 +753,36 @@ public class MainActivity extends Activity {
                     out.add(new Object[]{t, subOf(e), urlOf(e), "藏"});
             }
         } catch (Exception ignored) {}
+    }
+
+    ArrayList<Object[]> topPlayed() {
+        ArrayList<Object[]> out = new ArrayList<Object[]>();
+        try {
+            org.json.JSONObject pc = new org.json.JSONObject(
+                getSharedPreferences("mf", MODE_PRIVATE).getString("playcounts", "{}"));
+            ArrayList<String> keys = new ArrayList<String>();
+            java.util.Iterator<String> it = pc.keys();
+            while (it.hasNext()) keys.add(it.next());
+            java.util.Collections.sort(keys, new java.util.Comparator<String>() {
+                public int compare(String a, String b) {
+                    return pc.optInt(b) - pc.optInt(a); }});
+            for (int i = 0; i < Math.min(10, keys.size()); i++) {
+                String k = keys.get(i);
+                out.add(new Object[]{k, String.valueOf(pc.optInt(k)), "", ""});
+            }
+        } catch (Exception ignored) {}
+        return out;
+    }
+    ArrayList<java.io.File> downloadedFiles() {
+        ArrayList<java.io.File> out = new ArrayList<java.io.File>();
+        java.io.File dir = new java.io.File(
+            android.os.Environment.getExternalStorageDirectory()
+                .getPath() + "/Download/MusicFusion");
+        java.io.File[] fs = dir.listFiles();
+        if (fs != null)
+            for (java.io.File f : fs)
+                if (f.getName().endsWith(".mp3")) out.add(f);
+        return out;
     }
 
     ArrayList<String> loadEntries(String key) {
@@ -866,6 +946,11 @@ public class MainActivity extends Activity {
         addRecent(titles[pos], (String) rows.get(pos)[1], urls[pos]);
         android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
         sp.edit().putInt("total_plays", sp.getInt("total_plays", 0) + 1).apply();
+        try {
+            org.json.JSONObject pc = new org.json.JSONObject(sp.getString("playcounts", "{}"));
+            pc.put(titles[pos], pc.optInt(titles[pos]) + 1);
+            sp.edit().putString("playcounts", pc.toString()).apply();
+        } catch (Exception ignored) {}
         hideKb();
         adapter.notifyDataSetChanged();
     }

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#161c28"
+    android:padding="8dp">
+    <TextView android:id="@+id/w_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#e6edf3"
+        android:textSize="13sp"
+        android:singleLine="true"
+        android:text="MusicFusion"/>
+    <TextView android:id="@+id/w_state"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#8b949e"
+        android:textSize="11sp"
+        android:singleLine="true"
+        android:text="未在播放"/>
+    <LinearLayout android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button android:id="@+id/w_prev"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⏮" android:textSize="12sp"
+            android:background="@android:color/transparent"
+            android:textColor="#e6edf3"/>
+        <Button android:id="@+id/w_pause"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⏯" android:textSize="12sp"
+            android:background="@android:color/transparent"
+            android:textColor="#1db954"/>
+        <Button android:id="@+id/w_next"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⏭" android:textSize="12sp"
+            android:background="@android:color/transparent"
+            android:textColor="#e6edf3"/>
+    </LinearLayout>
+</LinearLayout>

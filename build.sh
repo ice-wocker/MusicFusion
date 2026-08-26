@@ -3,9 +3,11 @@
 set -e
 B=~/musicfusion
 cd $B
-rm -rf classes && mkdir -p classes
+rm -rf classes gen && mkdir -p classes gen
+aapt package -f -M AndroidManifest.xml -S res -I ~/apkbuild/android.jar -J gen
 javac -source 1.8 -target 1.8 -bootclasspath ~/apkbuild/android.jar \
-  -classpath ~/apkbuild/android.jar -d classes src/com/musicfusion/app/*.java > javac.log 2>&1 \
+  -classpath ~/apkbuild/android.jar -d classes \
+  gen/R.java src/com/musicfusion/app/*.java > javac.log 2>&1 \
   || { echo 编译失败; tail -15 javac.log; exit 1; }
 dx --dex --output=classes.dex classes
 aapt package -f -M AndroidManifest.xml -S res -I ~/apkbuild/android.jar -F base.apk
