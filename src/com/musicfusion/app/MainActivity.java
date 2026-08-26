@@ -129,8 +129,8 @@ public class MainActivity extends Activity {
         player.addView(seek);
 
         LinearLayout ctrls = new LinearLayout(this);
-        String[] btns = {"⏮", "⏯", "⏭", "随机", "循环"};
-        final String[] acts = {"PREV", "PAUSE", "NEXT", "SHUFFLE", "REPEAT"};
+        String[] btns = {"⏮", "⏯", "⏭", "随机", "循环", "词"};
+        final String[] acts = {"PREV", "PAUSE", "NEXT", "SHUFFLE", "REPEAT", "LYRICS"};
         for (int i = 0; i < btns.length; i++) {
             final String a = acts[i];
             TextView c = new TextView(this);
@@ -139,7 +139,7 @@ public class MainActivity extends Activity {
             c.setTextColor(C(C_TXT));
             c.setPadding(0, dp(6), 0, dp(2));
             c.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-                send(a); }});
+                if ("LYRICS".equals(a)) lyricsDialog(); else send(a); }});
             ctrls.addView(c, w(1));
         }
         player.addView(ctrls);
@@ -320,6 +320,89 @@ public class MainActivity extends Activity {
                 }
             }).show();
     }
+    void lyricsDialog() {
+        String full = nowBar.getText().toString();
+        if (full.startsWith("选择")) { toast("先播放一首歌"); return; }
+        String t = full.contains(" · ") ? full.substring(full.indexOf(" · ") + 3) : full;
+        final String track = t;
+        toast("查询歌词中…");
+        bg(new Runnable() { public void run() {
+            String ly = null;
+            try {
+                String artist = "", name = track;
+                String[] parts = track.split(" · ");
+                if (parts.length >= 2) { name = parts[0]; artist = parts[1]; }
+                ly = Lyrics.get(artist, name);
+            } catch (Exception ignored) {}
+            final String f = ly;
+            ui(new Runnable() { public void run() {
+                if (f == null) toast("未找到歌词(LRCLIB)");
+                else new AlertDialog.Builder(MainActivity.this)
+                    .setTitle(track)
+                    .setMessage(f.length() > 4000 ? f.substring(0, 4000) + "…" : f)
+                    .setPositiveButton("关闭", null).show();
+            }});
+        }});
+    }
+
+    // ══════ 歌单系统 ══════
+    void playlistPickDialog(final String title, final String sub, final String url) {
+        ArrayList<String> names = playlistNames();
+        final ArrayList<String> opts = new ArrayList<String>(names);
+        opts.add("+ 新建歌单");
+        new AlertDialog.Builder(this)
+            .setTitle("加入歌单")
+            .setItems(opts.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    String e = title + "\u0001" + sub + "\u0001" + url;
+                    if (w == names.size()) {
+                        final EditText et = new EditText(MainActivity.this);
+                        et.setHint("歌单名称");
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("新建歌单")
+                            .setView(et)
+                            .setPositiveButton("创建", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dd, int ww) {
+                                    String name = et.getText().toString().trim();
+                                    if (name.isEmpty()) return;
+                                    addToPlaylist(name, e);
+                                    toast("已创建并加入「" + name + "」");
+                                }
+                            }).setNegativeButton("取消", null).show();
+                    } else {
+                        addToPlaylist(names.get(w), e);
+                        toast("已加入「" + names.get(w) + "」");
+                    }
+                }
+            }).show();
+    }
+    ArrayList<String> playlistNames() {
+        ArrayList<String> l = new ArrayList<String>();
+        String raw = getSharedPreferences("mf", MODE_PRIVATE).getString("playlists", "");
+        if (!raw.isEmpty()) for (String n : raw.split("\n")) if (!n.isEmpty()) l.add(n);
+        return l;
+    }
+    void addToPlaylist(String name, String entry) {
+        android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        ArrayList<String> names = playlistNames();
+        if (!names.contains(name)) { names.add(name);
+            StringBuilder nb = new StringBuilder();
+            for (String n : names) nb.append(n).append("\n");
+            sp.edit().putString("playlists", nb.toString()).apply();
+        }
+        String key = "pl_" + name.hashCode();
+        ArrayList<String> items = loadEntries(key);
+        if (!items.contains(entry)) { items.add(entry); saveEntries(key, items); }
+    }
+    void loadPlaylists(final ArrayList<Object[]> out) {
+        for (String name : playlistNames()) {
+            ArrayList<String> items = loadEntries("pl_" + name.hashCode());
+            if (!items.isEmpty())
+                out.add(new Object[]{"[歌单] " + name + " (" + items.size() + "首)",
+                    items.get(0).split("\u0001")[0], "\u0001PL:" + name, "单"});
+        }
+    }
+
     void statsDialog() {
         android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
         int plays = sp.getInt("total_plays", 0);
@@ -594,6 +677,7 @@ public class MainActivity extends Activity {
                 out.add(new Object[]{"— 我的收藏 —", "", "", "头"});
                 for (String e : loadEntries(PREF_FAV))
                     out.add(new Object[]{titleOf(e), subOf(e), urlOf(e), "藏"});
+                loadPlaylists(out);
             } catch (Exception ignored) {}
             ui(new Runnable() { public void run() {
                 rows.clear(); rows.addAll(out);
@@ -653,9 +737,11 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(new String[]{
-                "收藏", "下载到本机", "分享", "复制链接", "从收藏移除", "取消"},
+                "收藏", "加入歌单", "下载到本机", "分享", "复制链接", "从收藏移除", "取消"},
             new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
+                    if (w == 1) { playlistPickDialog(title, sub, url); return; }
+                    if (w >= 2) w--;
                     if (w == 0) {
                         ArrayList<String> l = loadEntries(PREF_FAV);
                         String e = title + "\u0001" + sub + "\u0001" + url;
@@ -720,6 +806,26 @@ public class MainActivity extends Activity {
         if (url == null || url.isEmpty()) { toast("该条目不可播放"); return; }
         if (url.startsWith("\u0001HIST:")) {
             searchBox.setText(url.substring(7));
+            return;
+        }
+        if (url.startsWith("\u0001PL:")) {
+            String name = url.substring(7);
+            ArrayList<String> items = loadEntries("pl_" + name.hashCode());
+            if (items.isEmpty()) { toast("歌单为空"); return; }
+            String[] urls = new String[items.size()];
+            String[] titles = new String[items.size()];
+            for (int i = 0; i < items.size(); i++) {
+                urls[i] = urlOf(items.get(i));
+                titles[i] = titleOf(items.get(i));
+            }
+            Intent i2 = new Intent(this, PlayerService.class);
+            i2.putExtra("urls", urls);
+            i2.putExtra("titles", titles);
+            i2.putExtra("index", 0);
+            startService(i2);
+            nowBar.setText("歌单 · " + name);
+            nowBar.setTextColor(C(C_GREEN));
+            toast("播放歌单「" + name + "」(" + items.size() + "首)");
             return;
         }
         if (url.startsWith("IA:")) {

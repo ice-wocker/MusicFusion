@@ -5,7 +5,9 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.audiofx.Equalizer;
@@ -33,8 +35,38 @@ public class PlayerService extends Service implements
     static long sleepAt = 0;            // 睡眠定时戳, 0=off
     static final Handler handler = new Handler();
 
+    android.content.BroadcastReceiver noisy;
+    android.media.session.MediaSession session;
+
     @Override public void onCreate() {
         super.onCreate();
+        // 耳机拔出/蓝牙断开 → 自动暂停
+        noisy = new android.content.BroadcastReceiver() {
+            public void onReceive(Context c, Intent i) { toggle(); }
+        };
+        registerReceiver(noisy, new IntentFilter(
+            AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+        // 媒体按钮(耳机线控/蓝牙)
+        try {
+            session = new android.media.session.MediaSession(this, "MusicFusion");
+            session.setCallback(new android.media.session.MediaSession.Callback() {
+                public boolean onMediaButtonEvent(Intent i) {
+                    String a = i.getAction();
+                    if (Intent.ACTION_MEDIA_BUTTON.equals(a)) {
+                        int kc = (android.view.KeyEvent) i.getExtras()
+                            .get(Intent.EXTRA_KEY_EVENT) != null
+                            ? ((android.view.KeyEvent) i.getExtras()
+                                .get(Intent.EXTRA_KEY_EVENT)).getKeyCode() : 0;
+                        if (kc == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) toggle();
+                        else if (kc == android.view.KeyEvent.KEYCODE_MEDIA_NEXT) next();
+                        else if (kc == android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) prev();
+                        return true;
+                    }
+                    return super.onMediaButtonEvent(i);
+                }
+            });
+            session.setActive(true);
+        } catch (Exception ignored) {}
         if (mp == null) {
             mp = new MediaPlayer();
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -232,6 +264,8 @@ public class PlayerService extends Service implements
 
     @Override public IBinder onBind(Intent i) { return null; }
     @Override public void onDestroy() {
+        try { unregisterReceiver(noisy); } catch (Exception ignored) {}
+        try { if (session != null) { session.release(); session = null; } } catch (Exception ignored) {}
         handler.removeCallbacks(tick);
         try { if (eq != null) eq.release(); } catch (Exception ignored) {}
         if (mp != null) { mp.release(); mp = null; }
