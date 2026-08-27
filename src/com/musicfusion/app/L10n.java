@@ -65,6 +65,19 @@ public class L10n {
         {"shuffle_on",   "随机开",          "Shuffle on"},
         {"order",        "顺序播",          "Sequential"},
         {"lang",         "语言/Language",   "Language/Language"},
+        // v11 新增
+        {"minibar",      "迷你播放条",      "Mini player"},
+        {"lyrics_panel", "歌词",            "Lyrics"},
+        {"artist",       "作者",            "Artist"},
+        {"album",        "专辑",            "Album"},
+        {"more_from",    "更多",            "More from"},
+        {"preset",       "EQ 预设",         "EQ preset"},
+        {"noise",        "白噪声/睡眠音",   "White noise / sleep"},
+        {"refresh_cat",  "刷新离线目录",    "Refresh catalog"},
+        {"refreshing",   "刷新中…",         "Refreshing…"},
+        {"stream_info",  "当前播放",        "Now playing"},
+        {"no_metadata",  "无元数据",        "No metadata"},
+        {"icy_error",    "电台元数据获取失败", "Stream metadata unavailable"},
     };
 
     public static String s(String key) {

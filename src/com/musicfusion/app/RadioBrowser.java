@@ -22,6 +22,17 @@ public class RadioBrowser {
         return httpGet(BASE + "/stations/search?limit=30&order=clickcount&reverse=true&hidebroken=true");
     }
 
+    /** v11: 拉取全球投票数前100的活跃电台, 用于刷新本地离线目录 */
+    public static String topByVotes(int n) throws Exception {
+        return httpGet(BASE + "/stations/search?limit=" + n
+            + "&order=votes&reverse=true&hidebroken=true&has_geo_info=true");
+    }
+
+    /** v11: 列出RadioBrowser国家列表(将来用) */
+    public static String listCountries() throws Exception {
+        return httpGet(BASE + "/countries?limit=300");
+    }
+
     /** 解析: name\u0001country/tags\u0001bitrate\u0001url_resolved */
     public static String[] parse(String json) throws Exception {
         JSONArray arr = new JSONArray(json);

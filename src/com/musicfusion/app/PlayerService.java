@@ -117,9 +117,18 @@ public class PlayerService extends Service implements
         }
         if ("SPEED".equals(act)) { speed = i.getFloatExtra("v", 1f);
             applySpeed(); return START_STICKY; }
+        if ("EQ_PRESET".equals(act)) { // v11
+            int idx = i.getIntExtra("idx", -1);
+            EqPresets.apply(new EqPresets.Real(), idx);
+            MainActivity.onPlayState(nowPlaying, "EQ: " + EqPresets.name(idx));
+            return START_STICKY; }
         if ("SLEEP".equals(act)) { long min = i.getLongExtra("min", 0);
             sleepAt = min == 0 ? 0 : System.currentTimeMillis() + min * 60000;
             MainActivity.onPlayState(nowPlaying, min == 0 ? "睡眠定时取消" : "睡眠定时 " + min + "分钟");
+            return START_STICKY; }
+        if ("CLEAR".equals(act)) { // v11: 清空队列
+            queueUrl.clear(); queueTitle.clear(); queueIdx = 0;
+            stopIcyTicker();
             return START_STICKY; }
 
         String[] urls = i.getStringArrayExtra("urls");
@@ -180,14 +189,49 @@ public class PlayerService extends Service implements
         if (url == null || url.isEmpty()) { next(); return; }
         try {
             mp.reset();
-            mp.setDataSource(url);
+            // v11: 本地文件路径直接传
+            if (url.startsWith("/")) {
+                java.io.FileInputStream fis = new java.io.FileInputStream(url);
+                mp.setDataSource(fis.getFD());
+                fis.close();
+            } else {
+                mp.setDataSource(url);
+            }
             mp.prepareAsync();
             MainActivity.onPlayState(nowPlaying, L10n.s("buffering"));
             MainActivity.onProgress(0, 0);
             showNotif(nowPlaying, "缓冲中");
+            // v11: 直播流/电台拉取ICY元数据
+            if (url.startsWith("http")) startIcyTicker(url);
+            else stopIcyTicker();
         } catch (Exception e) {
             MainActivity.onPlayState(nowPlaying, "✗ " + e.getMessage());
         }
+    }
+
+    // ── v11: ICY直播流元数据 ticker ──
+    java.util.Timer icyTimer;
+    void startIcyTicker(final String url) {
+        stopIcyTicker();
+        icyTimer = new java.util.Timer();
+        icyTimer.schedule(new java.util.TimerTask() {
+            public void run() {
+                try {
+                    final String[] m = IcyMetadata.fetch(url);
+                    final String cur = m[2];
+                    if (cur != null && !cur.isEmpty()) {
+                        MainActivity.onStreamMeta(cur);
+                    } else if (m[0] != null && !m[0].isEmpty()) {
+                        MainActivity.onStreamMeta(m[0] + " · " + m[1]);
+                    } else {
+                        MainActivity.onStreamMeta(null);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }, 1500, 15000); // 首次1.5s, 之后每15s
+    }
+    void stopIcyTicker() {
+        if (icyTimer != null) { icyTimer.cancel(); icyTimer = null; }
     }
 
     void next() {
@@ -275,6 +319,7 @@ public class PlayerService extends Service implements
         try { unregisterReceiver(noisy); } catch (Exception ignored) {}
         try { if (session != null) { session.release(); session = null; } } catch (Exception ignored) {}
         handler.removeCallbacks(tick);
+        stopIcyTicker();
         try { if (eq != null) eq.release(); } catch (Exception ignored) {}
         if (mp != null) { mp.release(); mp = null; }
         super.onDestroy();

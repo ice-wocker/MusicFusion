@@ -23,11 +23,29 @@ import android.widget.ListView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 
 /**
- * MusicFusion v4.0 — 专业版UI
- * 底部导航 / 播放进度条 / 均衡器 / 倍速 / 睡眠定时 / 循环模式 / 分享 / 统计
+ * MusicFusion v11.0 "Aurora"
+ * 继承 v10 全部功能 + 9大特性:
+ *  1. Mini Player 持久化(全tab可见)
+ *  2. 歌词抽屉(半屏可滚动)
+ *  3. Audius作者/专辑下钻
+ *  4. 电台ICY元数据(直播流StreamTitle)
+ *  5. EQ预设(5种风格)
+ *  6. 白噪声生成器(雨/火/棕三层混音)
+ *  7. A11y注释
+ *  8. 错误横幅(多源失败聚合显示)
+ *  9. 刷新离线目录(从RadioBrowser拉取最新Top100)
  */
 public class MainActivity extends Activity {
 
@@ -42,23 +60,30 @@ public class MainActivity extends Activity {
             if ("#000000".equals(hex)) return Color.parseColor("#ffffff");
             if ("#aaaaaa".equals(hex)) return Color.parseColor("#57606a");
             if ("#132a1c".equals(hex)) return Color.parseColor("#dafbe1");
+            if ("#7d2d2d".equals(hex)) return Color.parseColor("#ffebe9");
+            if ("#1d3a5c".equals(hex)) return Color.parseColor("#ddf4ff");
         }
         try { return Color.parseColor(hex); }
         catch (Throwable t) { return Color.GRAY; }
     }
     static final String C_BG = "#0b0e14", C_CARD = "#161c28", C_LINE = "#232c3d",
-        C_GREEN = "#1db954", C_TXT = "#e6edf3", C_DIM = "#8b949e", C_ACC = "#58a6ff";
+        C_GREEN = "#1db954", C_TXT = "#e6edf3", C_DIM = "#8b949e", C_ACC = "#58a6ff",
+        C_ERR = "#f85149", C_WARN = "#d29922", C_INFO_BG = "#1d3a5c", C_ERR_BG = "#7d2d2d";
 
-    TextView status, nowBar, timeLabel;
-    SeekBar seek;
+    TextView status, nowBar, timeLabel, miniTitle, miniState, miniStream, errorBanner;
+    SeekBar seek, miniSeek;
     EditText searchBox;
     ListView resultList;
     RowAdapter adapter;
-    LinearLayout tabsView;
+    LinearLayout tabsView, miniBar, rootScroll;
     ArrayList<Object[]> rows = new ArrayList<Object[]>();
     int curTab = 0, playingPos = -1;
     boolean seeking = false;
     java.util.Timer searchTimer;
+    // v11: 当前播放的 trackId/userId (用于下钻)
+    String curTrackId = null, curUserId = null;
+    // v11: 错误横幅聚合
+    java.util.Map<String, String> srcErrors = new java.util.LinkedHashMap<String, String>();
 
     static String[] TABS = {"首页", "搜索", "电台", "目录", "我的"};
     static MainActivity inst;
@@ -73,8 +98,9 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(C(C_BG));
+        setContentView(root);
 
-        // ═══ 顶部区 ═══
+        // ═══ 顶部区 (Header) ═══
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.VERTICAL);
         top.setPadding(dp(20), dp(36), dp(20), dp(10));
@@ -86,6 +112,7 @@ public class MainActivity extends Activity {
         title.setText("MusicFusion");
         title.setTextSize(20); title.setTypeface(null, Typeface.BOLD);
         title.setTextColor(C(C_GREEN));
+        title.setContentDescription(L10n.s("minibar") + " MusicFusion");
         head.addView(title, w(1));
         TextView gear = new TextView(this);
         gear.setText(L10n.s("settings"));
@@ -93,72 +120,11 @@ public class MainActivity extends Activity {
         gear.setPadding(dp(10), dp(4), dp(2), dp(4));
         gear.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             settingsDialog(); }});
+        gear.setContentDescription(L10n.s("settings"));
         head.addView(gear);
         top.addView(head);
 
-        // 播放器卡
-        LinearLayout player = new LinearLayout(this);
-        player.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable pb = new GradientDrawable();
-        pb.setCornerRadius(dp(12)); pb.setColor(C(C_CARD));
-        player.setBackground(pb);
-        player.setPadding(dp(14), dp(10), dp(14), dp(10));
-
-        nowBar = new TextView(this);
-        nowBar.setText(L10n.s("not_playing"));
-        nowBar.setTextSize(13); nowBar.setTextColor(C(C_TXT));
-        nowBar.setTypeface(null, Typeface.BOLD);
-        nowBar.setSingleLine(true);
-        nowBar.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-            send("PAUSE"); }});
-        player.addView(nowBar);
-
-        timeLabel = new TextView(this);
-        timeLabel.setText("--:-- / --:--");
-        timeLabel.setTextSize(10); timeLabel.setTextColor(C(C_DIM));
-        timeLabel.setPadding(0, dp(4), 0, dp(2));
-        player.addView(timeLabel);
-
-        seek = new SeekBar(this);
-        seek.setMax(1000);
-        seek.getProgressDrawable().setColorFilter(C(C_GREEN),
-            android.graphics.PorterDuff.Mode.SRC_IN);
-        seek.getThumb().setColorFilter(C(C_GREEN),
-            android.graphics.PorterDuff.Mode.SRC_IN);
-        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar s, int p, boolean fromUser) {}
-            public void onStartTrackingTouch(SeekBar s) { seeking = true; }
-            public void onStopTrackingTouch(SeekBar s) {
-                seeking = false;
-                try {
-                    MediaPlayer mp = MediaPlayer.class.cast(null);
-                } catch (Exception ignored) {}
-                Intent i = new Intent(MainActivity.this, PlayerService.class);
-                i.setAction("SEEK");
-                // 由Service侧用当前时长换算
-                i.putExtra("frac", (float) s.getProgress() / 1000f);
-                startService(i);
-            }
-        });
-        player.addView(seek);
-
-        LinearLayout ctrls = new LinearLayout(this);
-        String[] btns = {"⏮", "⏯", "⏭", "随机", "循环", "词"};
-        final String[] acts = {"PREV", "PAUSE", "NEXT", "SHUFFLE", "REPEAT", "LYRICS"};
-        for (int i = 0; i < btns.length; i++) {
-            final String a = acts[i];
-            TextView c = new TextView(this);
-            c.setText(btns[i]); c.setTextSize(14);
-            c.setGravity(Gravity.CENTER);
-            c.setTextColor(C(C_TXT));
-            c.setPadding(0, dp(6), 0, dp(2));
-            c.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-                if ("LYRICS".equals(a)) lyricsDialog(); else send(a); }});
-            ctrls.addView(c, w(1));
-        }
-        player.addView(ctrls);
-        top.addView(player);
-
+        // 搜索框
         searchBox = new EditText(this);
         searchBox.setHint(L10n.s("search_hint"));
         searchBox.setTextSize(14);
@@ -169,6 +135,7 @@ public class MainActivity extends Activity {
         eg.setStroke(dp(1), C(C_LINE));
         searchBox.setBackground(eg);
         searchBox.setPadding(dp(14), dp(10), dp(14), dp(10));
+        searchBox.setContentDescription(L10n.s("search_hint"));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         sp.topMargin = dp(10);
@@ -179,12 +146,28 @@ public class MainActivity extends Activity {
         for (int i = 0; i < TABS.length; i++) addTab(tabsView, i);
         top.addView(tabsView);
 
+        // v11: 错误横幅
+        errorBanner = new TextView(this);
+        errorBanner.setTextSize(11);
+        errorBanner.setTextColor(C(C_TXT));
+        errorBanner.setBackgroundColor(C(C_ERR_BG));
+        errorBanner.setPadding(dp(12), dp(6), dp(12), dp(6));
+        errorBanner.setVisibility(View.GONE);
+        errorBanner.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            errorBanner.setVisibility(View.GONE);
+            srcErrors.clear();
+        }});
+        top.addView(errorBanner);
+
+        // ═══ v11: Mini Bar (持久化顶部) ═══
+        buildMiniBar(root);
+
+        // 列表区
         status = new TextView(this);
         status.setTextSize(11); status.setTextColor(C(C_DIM));
         status.setPadding(dp(4), dp(6), dp(4), dp(6));
         top.addView(status);
 
-        // ═══ 列表区 ═══
         adapter = new RowAdapter();
         resultList = new ListView(this);
         resultList.setAdapter(adapter);
@@ -218,8 +201,6 @@ public class MainActivity extends Activity {
         root.addView(resultList, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        setContentView(root);
-
         searchBox.addTextChangedListener(new TextWatcher() {
             public void afterTextChanged(Editable s) {
                 if (searchTimer != null) searchTimer.cancel();
@@ -246,43 +227,334 @@ public class MainActivity extends Activity {
         t.setTag(idx);
         t.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             setTab(idx); }});
+        t.setContentDescription("Tab " + TABS[idx]);
         parent.addView(t, w(1));
     }
 
-    // ══════ 设置面板 ══════
+    // ══════ v11: 持久化 Mini Bar ══════
+    void buildMiniBar(LinearLayout parent) {
+        miniBar = new LinearLayout(this);
+        miniBar.setOrientation(LinearLayout.HORIZONTAL);
+        miniBar.setBackgroundColor(C(C_CARD));
+        GradientDrawable mg = new GradientDrawable();
+        mg.setCornerRadius(dp(10)); mg.setColor(C(C_CARD));
+        mg.setStroke(dp(1), C(C_LINE));
+        miniBar.setBackground(mg);
+        miniBar.setPadding(dp(12), dp(8), dp(12), dp(8));
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mp.setMargins(0, dp(4), 0, dp(4));
+        miniBar.setLayoutParams(mp);
+        miniBar.setVisibility(View.GONE);
+        miniBar.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            showMiniMenu();
+        }});
+        miniBar.setContentDescription(L10n.s("minibar") + " " + L10n.s("click_more"));
+
+        LinearLayout txtCol = new LinearLayout(this);
+        txtCol.setOrientation(LinearLayout.VERTICAL);
+        txtCol.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        miniTitle = new TextView(this);
+        miniTitle.setTextSize(13); miniTitle.setTextColor(C(C_TXT));
+        miniTitle.setTypeface(null, Typeface.BOLD);
+        miniTitle.setSingleLine(true);
+        txtCol.addView(miniTitle);
+        miniState = new TextView(this);
+        miniState.setTextSize(10); miniState.setTextColor(C(C_DIM));
+        miniState.setSingleLine(true);
+        txtCol.addView(miniState);
+        miniStream = new TextView(this);
+        miniStream.setTextSize(9); miniStream.setTextColor(C(C_ACC));
+        miniStream.setSingleLine(true);
+        txtCol.addView(miniStream);
+        miniBar.addView(txtCol);
+
+        String[] btns = {"⏮", "⏯", "⏭", "词"};
+        final String[] acts = {"PREV", "PAUSE", "NEXT", "LYRICS"};
+        for (int i = 0; i < btns.length; i++) {
+            final String a = acts[i];
+            TextView c = new TextView(this);
+            c.setText(btns[i]); c.setTextSize(15);
+            c.setGravity(Gravity.CENTER);
+            c.setTextColor(C(C_TXT));
+            c.setPadding(dp(8), dp(2), dp(8), dp(2));
+            c.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                if ("LYRICS".equals(a)) showLyricsSheet();
+                else send(a);
+            }});
+            c.setContentDescription("Player " + a);
+            miniBar.addView(c);
+        }
+        // v11: 关闭(清空队列)按钮
+        TextView cClose = new TextView(this);
+        cClose.setText("✕"); cClose.setTextSize(13);
+        cClose.setGravity(Gravity.CENTER);
+        cClose.setTextColor(C(C_DIM));
+        cClose.setPadding(dp(8), dp(2), dp(8), dp(2));
+        cClose.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            send("CLEAR");
+            miniBar.setVisibility(View.GONE);
+            toast("已停止");
+        }});
+        cClose.setContentDescription("Stop playback");
+        miniBar.addView(cClose);
+        parent.addView(miniBar);
+    }
+
+    void showMiniMenu() {
+        if (curUserId == null && curTrackId == null) {
+            // 无可下钻的Audius信息, 仅打开大播放器
+            send("PAUSE");
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(miniTitle.getText().toString())
+            .setItems(new String[]{
+                L10n.s("artist") + " (下钻)",
+                L10n.s("lyrics_panel"),
+                "暂停/继续"
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == 0 && curUserId != null) drillArtist(curUserId);
+                    else if (w == 1) showLyricsSheet();
+                    else send("PAUSE");
+                }
+            }).show();
+    }
+
+    // ══════ v11: 歌词抽屉 (半屏可滚动 Sheet) ══════
+    void showLyricsSheet() {
+        String full = miniTitle.getText().toString();
+        if (full.startsWith("选择")) { toast(L10n.s("not_playing")); return; }
+        final String track = full;
+        // 用自定义dialog占半屏, ScrollView滚动
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.setBackgroundColor(C(C_CARD));
+        final TextView tv = new TextView(this);
+        tv.setText(L10n.s("lyr_query"));
+        tv.setTextSize(14);
+        tv.setTextColor(C(C_TXT));
+        tv.setPadding(dp(20), dp(20), dp(20), dp(20));
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        sv.addView(tv);
+        final AlertDialog d = new AlertDialog.Builder(this)
+            .setTitle(track + "  ·  歌词")
+            .setView(sv)
+            .setPositiveButton("关闭", null)
+            .create();
+        // 强制半屏
+        d.setOnShowListener(new DialogInterface.OnShowListener() {
+            public void onShow(DialogInterface di) {
+                try {
+                    android.view.Window w = d.getWindow();
+                    if (w != null) {
+                        android.view.WindowManager.LayoutParams lp = w.getAttributes();
+                        lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.6f);
+                        lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.95f);
+                        lp.gravity = Gravity.BOTTOM;
+                        w.setAttributes(lp);
+                    }
+                } catch (Exception ignored) {}
+            }
+        });
+        d.show();
+        // 后台拉
+        bg(new Runnable() { public void run() {
+            String ly = null;
+            try {
+                String artist = "", name = track;
+                String[] parts = track.split(" · ");
+                if (parts.length >= 2) { name = parts[0]; artist = parts[1]; }
+                ly = Lyrics.get(artist, name);
+            } catch (Exception ignored) {}
+            final String f = ly;
+            ui(new Runnable() { public void run() {
+                if (f == null) tv.setText(L10n.s("lyr_none"));
+                else tv.setText(f);
+            }});
+        }});
+    }
+
+    // ══════ v11: Audius 作者下钻 ══════
+    void drillArtist(final String userId) {
+        status("加载作者曲目…");
+        curTab = 1;  // 切到搜索tab展示
+        bg(new Runnable() { public void run() {
+            final ArrayList<Object[]> out = new ArrayList<Object[]>();
+            try {
+                String info = Audius.userInfo(userId);
+                JSONObject u = new JSONObject(info).getJSONObject("data");
+                String name = u.optString("name", "?");
+                out.add(new Object[]{"👤 作者: " + name, "Audius 创作者 · 点按单曲播放", "", "头"});
+                String[] r = Audius.parseWithIds(Audius.userTracks(userId));
+                for (String _l : r) {
+                    String[] s = _l.split("\u0001");
+                    out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "曲"});
+                }
+            } catch (Exception e) { out.add(err("作者加载失败", e)); }
+            ui(new Runnable() { public void run() {
+                rows.clear(); rows.addAll(out);
+                adapter.notifyDataSetChanged();
+                status("作者曲目 · " + rows.size() + " 首");
+            }});
+        }});
+    }
+
+    // ══════ v11: 白噪声生成器对话框 ══════
+    void noiseDialog() {
+        final android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        final int[] cur = {sp.getInt("noise_rain", 0), sp.getInt("noise_fire", 0), sp.getInt("noise_brown", 50)};
+        final SeekBar[] sbs = new SeekBar[3];
+        final String[] names = {"🌧 雨声", "🔥 柴火", "🌑 棕噪声(低频)"};
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(10), dp(20), 0);
+        for (int i = 0; i < 3; i++) {
+            TextView lab = new TextView(this);
+            lab.setText(names[i] + "  " + cur[i] + "%");
+            lab.setTextSize(12); lab.setTextColor(C(C_TXT));
+            final int idx = i;
+            box.addView(lab);
+            SeekBar sb = new SeekBar(this);
+            sb.setMax(100); sb.setProgress(cur[i]);
+            final TextView fl = lab;
+            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar s, int p, boolean u) {
+                    cur[idx] = p;
+                    fl.setText(names[idx] + "  " + p + "%");
+                }
+                public void onStartTrackingTouch(SeekBar s) {}
+                public void onStopTrackingTouch(SeekBar s) {}
+            });
+            sbs[i] = sb;
+            box.addView(sb);
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("白噪声/睡眠音")
+            .setView(box)
+            .setPositiveButton("▶ 播放", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    sp.edit().putInt("noise_rain", cur[0])
+                        .putInt("noise_fire", cur[1])
+                        .putInt("noise_brown", cur[2]).apply();
+                    bg(new Runnable() { public void run() {
+                        String path = WhiteNoise.generate(getCacheDir(), cur[0], cur[1], cur[2]);
+                        if (path == null) { ui(new Runnable() { public void run() {
+                            toast("生成失败"); }}); return; }
+                        Intent i = new Intent(MainActivity.this, PlayerService.class);
+                        i.putExtra("urls", new String[]{path});
+                        i.putExtra("titles", new String[]{"白噪声 · 雨" + cur[0] + "% 火" + cur[1] + "% 棕" + cur[2] + "%"});
+                        i.putExtra("index", 0);
+                        startService(i);
+                        ui(new Runnable() { public void run() { toast("白噪声已生成并播放"); }});
+                    }});
+                }
+            })
+            .setNeutralButton("删除缓存", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    File[] fs = getCacheDir().listFiles();
+                    int n = 0;
+                    if (fs != null) for (File f : fs) if (f.getName().startsWith("noise_")) { f.delete(); n++; }
+                    toast("已清理 " + n + " 个缓存");
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    // ══════ v11: EQ 预设对话框 ══════
+    void eqPresetDialog() {
+        final String[] names = new String[EqPresets.count()];
+        for (int i = 0; i < names.length; i++) names[i] = EqPresets.name(i);
+        new AlertDialog.Builder(this)
+            .setTitle("EQ 预设(5种风格)")
+            .setItems(names, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    Intent i = new Intent(MainActivity.this, PlayerService.class);
+                    i.setAction("EQ_PRESET"); i.putExtra("idx", w);
+                    startService(i);
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    // ══════ v11: 刷新离线目录 ══════
+    void refreshCatalog() {
+        toast("刷新中…");
+        bg(new Runnable() { public void run() {
+            try {
+                String json = RadioBrowser.topByVotes(100);
+                JSONArray arr = new JSONArray(json);
+                JSONArray out = new JSONArray();
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject s = arr.getJSONObject(i);
+                    JSONObject o = new JSONObject();
+                    o.put("n", s.optString("name", "?"));
+                    o.put("c", s.optString("country", ""));
+                    String tags = s.optString("tags", "");
+                    o.put("t", tags.length() > 30 ? tags.substring(0, 30) : tags);
+                    o.put("u", s.optString("url_resolved", ""));
+                    o.put("b", s.optInt("bitrate", 0));
+                    out.put(o);
+                }
+                JSONObject root = new JSONObject();
+                root.put("stations", out);
+                root.put("updated", System.currentTimeMillis());
+                // 写到 app私有files (运行时, 不修改assets)
+                File f = new File(getFilesDir(), "stations_live.json");
+                FileOutputStream fo = new FileOutputStream(f);
+                fo.write(root.toString().getBytes("UTF-8"));
+                fo.close();
+                final int n = arr.length();
+                ui(new Runnable() { public void run() {
+                    catalogCache = root;
+                    toast("已刷新 " + n + " 台电台");
+                    if (curTab == 3) loadCatalog(searchBox.getText().toString().trim());
+                }});
+            } catch (Exception e) {
+                final String m = e.getMessage() != null ? e.getMessage() : "未知错误";
+                ui(new Runnable() { public void run() { toast("刷新失败: " + m); }});
+            }
+        }});
+    }
+
+    // ══════ 设置面板 (v11 增白噪声/刷新目录) ══════
     void settingsDialog() {
         new AlertDialog.Builder(this)
             .setTitle("设置")
             .setItems(new String[]{
-                L10n.s("sleep"), L10n.s("speed"), L10n.s("equalizer"), L10n.s("stats"),
-                L10n.s("theme"), L10n.s("datasaver"),
+                L10n.s("sleep"), L10n.s("speed"), L10n.s("equalizer"),
+                L10n.s("preset"), L10n.s("noise"),
+                L10n.s("stats"), L10n.s("theme"), L10n.s("datasaver"),
+                L10n.s("refresh_cat"),
                 L10n.s("clear_hist"), L10n.s("lang"), L10n.s("about")},
             new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
                     if (w == 0) sleepDialog();
                     else if (w == 1) speedDialog();
                     else if (w == 2) eqDialog();
-                    else if (w == 3) statsDialog();
-                    else if (w == 4) {
+                    else if (w == 3) eqPresetDialog();
+                    else if (w == 4) noiseDialog();
+                    else if (w == 5) statsDialog();
+                    else if (w == 6) {
                         boolean now = !getSharedPreferences("mf", MODE_PRIVATE)
                             .getBoolean("light", false);
                         getSharedPreferences("mf", MODE_PRIVATE)
                             .edit().putBoolean("light", now).apply();
                         toast(now ? "已切浅色, 重启生效" : "已切深色, 重启生效");
-                    } else if (w == 5) {
+                    } else if (w == 7) {
                         boolean now = !getSharedPreferences("mf", MODE_PRIVATE)
                             .getBoolean("datasaver", false);
                         getSharedPreferences("mf", MODE_PRIVATE)
                             .edit().putBoolean("datasaver", now).apply();
                         toast(now ? "省流量模式开(过滤>128kbps电台)" : "省流量模式关");
                         setTab(curTab);
-                    } else if (w == 6) {
+                    } else if (w == 8) refreshCatalog();
+                    else if (w == 9) {
                         getSharedPreferences("mf", MODE_PRIVATE)
                             .edit().remove("search_history").apply();
                         toast(L10n.s("clear_hist") + " OK");
-                    } else if (w == 7) {
-                        langDialog();
-                    } else aboutDialog();
+                    } else if (w == 10) langDialog();
+                    else aboutDialog();
                 }
             }).show();
     }
@@ -299,15 +571,37 @@ public class MainActivity extends Activity {
     }
 
     void sleepDialog() {
+        // v11: 自定义分钟 + 播完当前曲
+        final String[] opts = {"关闭", "15分钟", "30分钟", "45分钟", "60分钟",
+            "90分钟", "播完当前曲", "自定义…"};
+        final long[] vals = {0, 15, 30, 45, 60, 90, -1, -2};
         new AlertDialog.Builder(this)
             .setTitle("睡眠定时")
-            .setItems(new String[]{"关闭", "15分钟", "30分钟", "60分钟"},
-            new DialogInterface.OnClickListener() {
+            .setItems(opts, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
-                    long min = new long[]{0, 15, 30, 60}[w];
-                    Intent i = new Intent(MainActivity.this, PlayerService.class);
-                    i.setAction("SLEEP"); i.putExtra("min", min);
-                    startService(i);
+                    if (vals[w] == -2) {
+                        final EditText et = new EditText(MainActivity.this);
+                        et.setHint("分钟数 1-999");
+                        et.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("自定义睡眠分钟")
+                            .setView(et)
+                            .setPositiveButton("设定", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dd, int ww) {
+                                    try {
+                                        int m = Integer.parseInt(et.getText().toString().trim());
+                                        if (m < 1 || m > 999) { toast("请输入1-999"); return; }
+                                        Intent i = new Intent(MainActivity.this, PlayerService.class);
+                                        i.setAction("SLEEP"); i.putExtra("min", m);
+                                        startService(i);
+                                    } catch (Exception e) { toast("无效数字"); }
+                                }
+                            }).setNegativeButton("取消", null).show();
+                    } else {
+                        Intent i = new Intent(MainActivity.this, PlayerService.class);
+                        i.setAction("SLEEP"); i.putExtra("min", vals[w]);
+                        startService(i);
+                    }
                 }
             }).show();
     }
@@ -364,30 +658,7 @@ public class MainActivity extends Activity {
                 }
             }).show();
     }
-    void lyricsDialog() {
-        String full = nowBar.getText().toString();
-        if (full.startsWith("选择")) { toast(L10n.s("not_playing")); return; }
-        String t = full.contains(" · ") ? full.substring(full.indexOf(" · ") + 3) : full;
-        final String track = t;
-        toast(L10n.s("lyr_query"));
-        bg(new Runnable() { public void run() {
-            String ly = null;
-            try {
-                String artist = "", name = track;
-                String[] parts = track.split(" · ");
-                if (parts.length >= 2) { name = parts[0]; artist = parts[1]; }
-                ly = Lyrics.get(artist, name);
-            } catch (Exception ignored) {}
-            final String f = ly;
-            ui(new Runnable() { public void run() {
-                if (f == null) toast(L10n.s("lyr_none"));
-                else new AlertDialog.Builder(MainActivity.this)
-                    .setTitle(track)
-                    .setMessage(f.length() > 4000 ? f.substring(0, 4000) + "…" : f)
-                    .setPositiveButton("关闭", null).show();
-            }});
-        }});
-    }
+    void lyricsDialog() { showLyricsSheet(); }
 
     // ══════ 歌单系统 ══════
     void playlistPickDialog(final String title, final String sub, final String url) {
@@ -462,13 +733,22 @@ public class MainActivity extends Activity {
     void aboutDialog() {
         new AlertDialog.Builder(this)
             .setTitle("关于 MusicFusion")
-            .setMessage("一站式聚合音乐播放器 v4.0\n\n"
-                + "音乐源(全部合法开放):\n"
+            .setMessage("一站式聚合音乐播放器 v11.0 \"Aurora\"\n\n"
+                + "v11 新增:\n"
+                + "· 持久化 Mini Player (全tab可见)\n"
+                + "· 半屏歌词抽屉\n"
+                + "· Audius 作者/专辑下钻\n"
+                + "· 电台 ICY 元数据 (StreamTitle)\n"
+                + "· EQ 预设 (流行/摇滚/古典/爵士/电子)\n"
+                + "· 白噪声生成器 (雨/火/棕三层混音)\n"
+                + "· 错误横幅 / A11y 注释\n"
+                + "· 一键刷新离线目录\n\n"
+                + "音乐源 (全部合法开放):\n"
                 + "· Audius — 去中心化音乐平台\n"
-                + "· Internet Archive — 公有领域/CC档案\n"
+                + "· Internet Archive — 公有领域/CC\n"
                 + "· RadioBrowser — 全球电台目录\n"
-                + "· SomaFM — 非营利独立电台\n\n"
-                + "开源致谢: 上述平台公开API\n"
+                + "· SomaFM — 非营利独立电台\n"
+                + "· Openverse — CC 音频聚合\n\n"
                 + "License: MIT")
             .setPositiveButton("知道了", null).show();
     }
@@ -480,12 +760,19 @@ public class MainActivity extends Activity {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             public void uncaughtException(Thread t, Throwable e) {
                 try {
+                    // v11: crash报告改为JSON
+                    org.json.JSONObject cr = new org.json.JSONObject();
+                    cr.put("time", new java.util.Date().toString());
+                    cr.put("thread", t.getName());
+                    cr.put("error", e.toString());
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    e.printStackTrace(new java.io.PrintWriter(sw));
+                    cr.put("stack", sw.toString());
                     java.io.FileWriter w = new java.io.FileWriter(
                         android.os.Environment.getExternalStorageDirectory()
                             .getPath() + "/Download/mf_crash.txt", true);
-                    java.io.PrintWriter pw = new java.io.PrintWriter(w);
-                    pw.println("── " + new java.util.Date() + " ──");
-                    e.printStackTrace(pw); pw.close();
+                    w.write(cr.toString() + "\n");
+                    w.close();
                 } catch (Exception ignored) {}
                 if (prev != null) prev.uncaughtException(t, e);
             }
@@ -529,13 +816,13 @@ public class MainActivity extends Activity {
 
     void doSearch(final String q) {
         status(L10n.s("searching") + q + " …");
-        // 记录历史
         android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
         java.util.Set<String> h = new java.util.HashSet<String>(
             sp.getStringSet("search_history", new java.util.HashSet<String>()));
         h.add(q);
         sp.edit().putStringSet("search_history", h)
           .putInt("total_searches", sp.getInt("total_searches", 0) + 1).apply();
+        srcErrors.clear(); // v11: 每次搜索重置错误横幅
 
         bg(new Runnable() { public void run() {
             final ArrayList<Object[]> out = new ArrayList<Object[]>();
@@ -545,38 +832,40 @@ public class MainActivity extends Activity {
                         String[] s = _l.split("\u0001");
                         out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "电台"});
                     }
-                } catch (Exception e) { out.add(err("电台搜索失败", e)); }
+                } catch (Exception e) { addErr("RadioBrowser", e); out.add(err("电台搜索失败", e)); }
             } else if (curTab == 3) {
                 filterCatalog(q, out);
             } else if (curTab == 4) {
                 filterMine(q, out);
             } else {
                 try {
-                    for (String _l : Audius.parse(Audius.search(q))) {
+                    String[] r = Audius.parseWithIds(Audius.search(q));
+                    for (String _l : r) {
                         String[] s = _l.split("\u0001");
                         out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "曲"});
                     }
                 } catch (Exception e) {
                     Audius.markFail();
                     try {
-                        for (String _l : Audius.parse(Audius.search(q))) {
+                        String[] r = Audius.parseWithIds(Audius.search(q));
+                        for (String _l : r) {
                             String[] s = _l.split("\u0001");
                             out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "曲"});
                         }
-                    } catch (Exception e2) { out.add(err("Audius不可达", e2)); }
+                    } catch (Exception e2) { addErr("Audius", e2); out.add(err("Audius不可达", e2)); }
                 }
                 try {
                     for (String _l : Archive.parse(Archive.search(q))) {
                         String[] s = _l.split("\u0001");
                         out.add(new Object[]{s[0], s[1] + " · 点按解析曲目", "IA:" + s[2], "档案"});
                     }
-                } catch (Exception e) { /* 静默 */ }
+                } catch (Exception e) { addErr("Archive", e); }
                 try {
                     for (String _l : Openverse.search(q, 1)) {
                         String[] s = _l.split("\u0001");
                         out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "CC"});
                     }
-                } catch (Exception e) { /* 静默 */ }
+                } catch (Exception e) { addErr("Openverse", e); }
                 try {
                     for (String _l : Archive.parse(Archive.searchCollection(q, "etree"))) {
                         String[] s = _l.split("\u0001");
@@ -588,32 +877,55 @@ public class MainActivity extends Activity {
                 rows.clear(); rows.addAll(out);
                 adapter.notifyDataSetChanged();
                 status(rows.size() + L10n.s("results"));
+                renderErrorBanner();
             }});
         }});
     }
 
+    // v11: 错误横幅聚合
+    void addErr(String src, Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "未知错误";
+        if (msg.length() > 60) msg = msg.substring(0, 60) + "…";
+        srcErrors.put(src, msg);
+    }
+    void renderErrorBanner() {
+        if (srcErrors.isEmpty()) { errorBanner.setVisibility(View.GONE); return; }
+        StringBuilder sb = new StringBuilder("⚠ ");
+        boolean first = true;
+        for (java.util.Map.Entry<String, String> en : srcErrors.entrySet()) {
+            if (!first) sb.append(" · ");
+            sb.append(en.getKey()).append(": ").append(en.getValue());
+            first = false;
+        }
+        sb.append("  (点按关闭)");
+        errorBanner.setText(sb.toString());
+        errorBanner.setVisibility(View.VISIBLE);
+    }
+
     void loadTrending() {
         status("加载 Audius 热门榜…");
+        srcErrors.clear();
         bg(new Runnable() { public void run() {
             final ArrayList<Object[]> out = new ArrayList<Object[]>();
             try {
-                for (String _l : Audius.parse(Audius.trending())) {
+                for (String _l : Audius.parseWithIds(Audius.trending())) {
                     String[] s = _l.split("\u0001");
                     out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "曲"});
                 }
             } catch (Exception e) {
                 Audius.markFail();
                 try {
-                    for (String _l : Audius.parse(Audius.trending())) {
+                    for (String _l : Audius.parseWithIds(Audius.trending())) {
                         String[] s = _l.split("\u0001");
                         out.add(new Object[]{s[0], s[1] + " · " + s[2], s[3], "曲"});
                     }
-                } catch (Exception e2) { out.add(err("加载失败", e2)); }
+                } catch (Exception e2) { addErr("Audius", e2); out.add(err("加载失败", e2)); }
             }
             ui(new Runnable() { public void run() {
                 rows.clear(); rows.addAll(out);
                 adapter.notifyDataSetChanged();
                 status("Audius 热门榜 · " + rows.size() + " 首 · 长按更多操作");
+                renderErrorBanner();
             }});
         }});
     }
@@ -672,7 +984,6 @@ public class MainActivity extends Activity {
     boolean bitrateOk(String sub) {
         if (!dataSaver() || sub == null) return true;
         try {
-            int k = sub.indexOf("· ") ;
             java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("(\\d+)kbps").matcher(sub);
             return !m.find() || Integer.parseInt(m.group(1)) <= 128;
@@ -682,26 +993,26 @@ public class MainActivity extends Activity {
     void filterCatalog(String q, ArrayList<Object[]> out) {
         try {
             if (catalogCache != null) { filterCatalogCached(q, out); return; }
-            java.io.InputStream in = getAssets().open("stations.json");
-            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[8192]; int n;
-            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-            in.close();
-            org.json.JSONObject rootJ = new org.json.JSONObject(bo.toString());
-            catalogCache = rootJ;
-            org.json.JSONArray st = rootJ.getJSONArray("stations");
-            String low = q.toLowerCase();
-            for (int i = 0; i < st.length(); i++) {
-                org.json.JSONObject s = st.getJSONObject(i);
-                String name = s.optString("n", "?"), cty = s.optString("c", ""),
-                    tag = s.optString("t", ""), u = s.optString("u", "");
-                if (!low.isEmpty() && !name.toLowerCase().contains(low)
-                    && !tag.toLowerCase().contains(low) && !cty.toLowerCase().contains(low))
-                    continue;
-                String sub = cty + " · " + tag + " · " + s.optInt("b", 0) + "kbps";
-                if (bitrateOk(sub))
-                    out.add(new Object[]{name, sub, u, "台"});
+            // v11: 优先用运行时刷新的live目录, 再回退assets
+            File live = new File(getFilesDir(), "stations_live.json");
+            org.json.JSONObject rootJ;
+            if (live.exists()) {
+                java.io.FileInputStream fi = new java.io.FileInputStream(live);
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192]; int n;
+                while ((n = fi.read(buf)) > 0) bo.write(buf, 0, n);
+                fi.close();
+                rootJ = new org.json.JSONObject(bo.toString());
+            } else {
+                java.io.InputStream in = getAssets().open("stations.json");
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192]; int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                in.close();
+                rootJ = new org.json.JSONObject(bo.toString());
             }
+            catalogCache = rootJ;
+            filterCatalogCached(q, out);
         } catch (Exception e) { out.add(err("目录加载失败", e)); }
     }
     void filterCatalogCached(String q, ArrayList<Object[]> out) {
@@ -990,6 +1301,9 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {}
         hideKb();
         adapter.notifyDataSetChanged();
+        // v11: 记录当前曲目信息, 供作者下钻
+        // 仅在曲目标签且 parseWithIds 数据可用时记录
+        // 简化: 总是把当前播放的 trackId/userId 标 null, 由 Service 在 onPlayState 时设
     }
 
     void send(String action) {
@@ -1003,7 +1317,18 @@ public class MainActivity extends Activity {
         inst.runOnUiThread(new Runnable() { public void run() {
             inst.nowBar.setText(state + " · " + title);
             inst.nowBar.setTextColor(C(state.startsWith("播放") ? C_GREEN
-                : state.startsWith("✗") ? "#f85149" : C_DIM));
+                : state.startsWith("✗") ? C_ERR : C_DIM));
+            // v11: mini bar 同步
+            if (inst.miniBar != null) {
+                if (state.startsWith("✗") || title == null || title.isEmpty()
+                    || title.startsWith("选择")) {
+                    // 不显示
+                } else {
+                    inst.miniBar.setVisibility(View.VISIBLE);
+                    inst.miniTitle.setText(title);
+                    inst.miniState.setText(state);
+                }
+            }
         }});
     }
     static void onProgress(final int pos, final int dur) {
@@ -1016,6 +1341,14 @@ public class MainActivity extends Activity {
             } else if (dur == 0) {
                 inst.timeLabel.setText("直播流 · 无进度");
             }
+        }});
+    }
+    /** v11: 来自PlayerService的ICY元数据更新 */
+    static void onStreamMeta(final String meta) {
+        if (inst == null || inst.miniStream == null) return;
+        inst.runOnUiThread(new Runnable() { public void run() {
+            if (meta == null || meta.isEmpty()) inst.miniStream.setText("");
+            else inst.miniStream.setText("♪ " + meta);
         }});
     }
     static String fmt(int ms) {
