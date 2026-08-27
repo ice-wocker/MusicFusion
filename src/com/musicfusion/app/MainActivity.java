@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
         C_ERR = "#f85149", C_WARN = "#d29922", C_INFO_BG = "#1d3a5c", C_ERR_BG = "#7d2d2d";
 
     TextView status, nowBar, timeLabel, miniTitle, miniState, miniStream, errorBanner;
-    SeekBar seek, miniSeek;
+    SeekBar seek;
     EditText searchBox;
     ListView resultList;
     RowAdapter adapter;
@@ -146,6 +146,35 @@ public class MainActivity extends Activity {
         for (int i = 0; i < TABS.length; i++) addTab(tabsView, i);
         top.addView(tabsView);
 
+        // v11.1: 修复闪退 — 重建 nowBar/timeLabel/seek 顶部播放信息行
+        LinearLayout nowRow = new LinearLayout(this);
+        nowRow.setOrientation(LinearLayout.HORIZONTAL);
+        nowRow.setGravity(Gravity.CENTER_VERTICAL);
+        nowRow.setPadding(dp(4), dp(2), dp(4), dp(2));
+        nowBar = new TextView(this);
+        nowBar.setText(L10n.s("not_playing"));
+        nowBar.setTextSize(12);
+        nowBar.setTextColor(C(C_DIM));
+        nowBar.setSingleLine(true);
+        nowBar.setTypeface(null, Typeface.BOLD);
+        nowBar.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            send("PAUSE");
+        }});
+        nowBar.setContentDescription("Now playing");
+        nowRow.addView(nowBar, w(1));
+        timeLabel = new TextView(this);
+        timeLabel.setText("--:--");
+        timeLabel.setTextSize(10);
+        timeLabel.setTextColor(C(C_DIM));
+        timeLabel.setPadding(dp(6), 0, 0, 0);
+        timeLabel.setContentDescription("Time");
+        nowRow.addView(timeLabel);
+        top.addView(nowRow);
+        // 占位 seek 兼容引用 (不显示, 但不为null)
+        seek = new SeekBar(this);
+        seek.setMax(1000);
+        seek.setVisibility(View.GONE);
+
         // v11: 错误横幅
         errorBanner = new TextView(this);
         errorBanner.setTextSize(11);
@@ -176,10 +205,13 @@ public class MainActivity extends Activity {
         resultList.setBackgroundColor(C(C_BG));
         resultList.setPadding(dp(10), 0, dp(10), dp(10));
         resultList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            public void onItemClick(AdapterView<?> p, View v, int pos, long id) { playAt(pos); }
+            public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
+                try { playAt(pos); } catch (Throwable t) { toast("播放失败: " + t.getMessage()); }
+            }
         });
         resultList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> p, View v, int pos, long id) {
+                try {
                 if (pos < rows.size() && "H".equals(rows.get(pos)[3])) {
                     String t = (String) rows.get(pos)[0];
                     if (t.startsWith("搜索: ")) {
@@ -196,6 +228,7 @@ public class MainActivity extends Activity {
                     return true;
                 }
                 itemMenu(pos); return true;
+                } catch (Throwable t) { toast("操作失败: " + t.getMessage()); return true; }
             }
         });
         root.addView(resultList, new LinearLayout.LayoutParams(
@@ -482,6 +515,8 @@ public class MainActivity extends Activity {
         toast("刷新中…");
         bg(new Runnable() { public void run() {
             try {
+                // 防御 runOnUiThread 在某些 OEM 上抛
+                final android.content.Context ctx = MainActivity.this;
                 String json = RadioBrowser.topByVotes(100);
                 JSONArray arr = new JSONArray(json);
                 JSONArray out = new JSONArray();
@@ -1282,7 +1317,7 @@ public class MainActivity extends Activity {
             urls[i] = u == null ? "" : u;
             titles[i] = (String) rows.get(i)[0];
         }
-        if (urls[pos].isEmpty()) { toast(L10n.s("no_url")); return; }
+        if (urls[pos] == null || urls[pos].isEmpty()) { toast(L10n.s("no_url")); return; }
         Intent i = new Intent(this, PlayerService.class);
         i.putExtra("urls", urls);
         i.putExtra("titles", titles);
@@ -1291,7 +1326,7 @@ public class MainActivity extends Activity {
         playingPos = pos;
         nowBar.setText("缓冲 · " + titles[pos]);
         nowBar.setTextColor(C(C_GREEN));
-        addRecent(titles[pos], (String) rows.get(pos)[1], urls[pos]);
+        addRecent(titles[pos], rows.get(pos)[1] == null ? "" : (String) rows.get(pos)[1], urls[pos]);
         android.content.SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
         sp.edit().putInt("total_plays", sp.getInt("total_plays", 0) + 1).apply();
         try {
@@ -1315,31 +1350,41 @@ public class MainActivity extends Activity {
     static void onPlayState(final String title, final String state) {
         if (inst == null) return;
         inst.runOnUiThread(new Runnable() { public void run() {
-            inst.nowBar.setText(state + " · " + title);
-            inst.nowBar.setTextColor(C(state.startsWith("播放") ? C_GREEN
-                : state.startsWith("✗") ? C_ERR : C_DIM));
-            // v11: mini bar 同步
-            if (inst.miniBar != null) {
-                if (state.startsWith("✗") || title == null || title.isEmpty()
-                    || title.startsWith("选择")) {
-                    // 不显示
-                } else {
-                    inst.miniBar.setVisibility(View.VISIBLE);
-                    inst.miniTitle.setText(title);
-                    inst.miniState.setText(state);
+            try {
+                if (inst.nowBar != null) {
+                    inst.nowBar.setText(state + " · " + title);
+                    inst.nowBar.setTextColor(C(state.startsWith("播放") ? C_GREEN
+                        : state.startsWith("✗") ? C_ERR : C_DIM));
                 }
-            }
+                // v11: mini bar 同步
+                if (inst.miniBar != null) {
+                    if (state.startsWith("✗") || title == null || title.isEmpty()
+                        || title.startsWith("选择")) {
+                        // 不显示
+                    } else {
+                        inst.miniBar.setVisibility(View.VISIBLE);
+                        if (inst.miniTitle != null) inst.miniTitle.setText(title);
+                        if (inst.miniState != null) inst.miniState.setText(state);
+                    }
+                }
+            } catch (Exception e) { /* 静默 — onPlayState 是 Service→UI 路径, 不能闪退 */ }
         }});
     }
     static void onProgress(final int pos, final int dur) {
         if (inst == null) return;
         inst.runOnUiThread(new Runnable() { public void run() {
             if (!inst.seeking && dur > 0) {
-                inst.seek.setMax(dur);
-                inst.seek.setProgress(pos);
-                inst.timeLabel.setText(fmt(pos) + " / " + fmt(dur));
+                if (inst.seek != null) {
+                    inst.seek.setMax(dur);
+                    inst.seek.setProgress(pos);
+                    inst.seek.postDelayed(new Runnable() { public void run() {
+                        if (inst.seek != null) inst.seek.setVisibility(View.GONE);
+                    }}, 50);
+                }
+                if (inst.timeLabel != null)
+                    inst.timeLabel.setText(fmt(pos) + " / " + fmt(dur));
             } else if (dur == 0) {
-                inst.timeLabel.setText("直播流 · 无进度");
+                if (inst.timeLabel != null) inst.timeLabel.setText("直播流");
             }
         }});
     }
@@ -1347,8 +1392,10 @@ public class MainActivity extends Activity {
     static void onStreamMeta(final String meta) {
         if (inst == null || inst.miniStream == null) return;
         inst.runOnUiThread(new Runnable() { public void run() {
-            if (meta == null || meta.isEmpty()) inst.miniStream.setText("");
-            else inst.miniStream.setText("♪ " + meta);
+            try {
+                if (meta == null || meta.isEmpty()) inst.miniStream.setText("");
+                else inst.miniStream.setText("♪ " + meta);
+            } catch (Exception e) {}
         }});
     }
     static String fmt(int ms) {

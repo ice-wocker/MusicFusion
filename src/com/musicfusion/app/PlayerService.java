@@ -87,15 +87,19 @@ public class PlayerService extends Service implements
     // 500ms心跳: 睡眠定时检查 + 进度回传
     final Runnable tick = new Runnable() { public void run() {
         try {
-            if (sleepAt > 0 && System.currentTimeMillis() >= sleepAt) {
-                sleepAt = 0;
-                if (mp != null) mp.pause();
-                MainActivity.onPlayState(nowPlaying, "🌙 睡眠定时已暂停");
+            if (mp != null) {
+                if (sleepAt > 0 && System.currentTimeMillis() >= sleepAt) {
+                    sleepAt = 0;
+                    try { mp.pause(); } catch (Exception ignored) {}
+                    MainActivity.onPlayState(nowPlaying, "🌙 睡眠定时已暂停");
+                }
+                if (mp.isPlaying()) {
+                    try {
+                        MainActivity.onProgress(mp.getCurrentPosition(), mp.getDuration());
+                    } catch (Exception ignored) {}
+                }
             }
-            if (mp != null && mp.isPlaying()) {
-                MainActivity.onProgress(mp.getCurrentPosition(), mp.getDuration());
-            }
-        } catch (Exception ignored) {}
+        } catch (Throwable t) { /* 静默, 心跳不能闪退 */ }
         handler.postDelayed(this, 500);
     }};
 
