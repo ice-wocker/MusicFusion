@@ -1,6 +1,51 @@
-classes/
+# Build artifacts
 *.apk
-!musicfusion.apk
-build/
+*.dex
+classes/
+gen/
+base.apk
+aligned.apk
 javac.log
+
+# Keystore
+*.keystore
+*.jks
+keystore.properties
+
+# Local config
 local.properties
+*.local
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files (避免误提交)
+*.bak
+*.tmp
+*~
+*.swp
+
+# Personal / sensitive — 永远不提交
+*.log
+crash_*.json
+stations_live.json
+*.json.bak
+
+# Gradle (虽然本项目不用 gradle, 但防御性添加)
+.gradle/
+build/
+
+# 临时下载/中转
+mf*.apk
+backup_*.json
+
+# Native build
+*.so
+obj/
