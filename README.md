@@ -3,7 +3,23 @@
 一站式聚合音乐播放器 — 整合全球开放音乐源，纯公开 API，无需任何账号。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![APK](https://img.shields.io/badge/APK-v11.0--Aurora-1db954.svg)](musicfusion.apk)
+[![APK](https://img.shields.io/badge/APK-v11.1--Aurora-1db954.svg)](musicfusion.apk)
+
+## ✨ v11.1 "Aurora" 闪退修复
+
+修复 v11.0 在点击曲目时偶发的 `nowBar.setText()` NPE 闪退（v11 改版时把播放器卡搬到 Mini Player 后未清理 nowBar 引用）。
+
+**加固措施**：
+- 重建顶部迷你播放信息行（nowBar + timeLabel）
+- 删除未初始化的 `miniSeek` 字段
+- `onPlayState` / `onStreamMeta` / `PlayerService.tick` 全部加 try-catch
+- 列表点击/长按入口顶层 try-catch 兜底（任何意外只 toast，不闪退）
+- `urls[pos]` / `rows[pos][1]` 加 null 检查
+- `seek` setMax 后 50ms 隐藏（GONE），兼容 `onProgress` 引用
+
+设备实测（vivo V2283A / Android 15）：点击 Audius 100 首热门曲目不再闪退。
+
+---
 
 ## ✨ v11.0 "Aurora" 全新特性
 
@@ -50,6 +66,18 @@
 ```bash
 bash build.sh   # 产出 musicfusion.apk (~160KB)
 ```
+
+## 📜 更新日志
+
+- **v11.1** — 闪退修复：nowBar NPE / 兜底 try-catch / 字段清理
+- **v11.0 "Aurora"** — Mini Player 持久化 / 歌词抽屉 / Audius 下钻 / 电台 ICY / EQ 预设 / 白噪声 / A11y / 错误横幅 / 刷新目录
+- **v10.0** — 多语言(中/英) / 兼容性加固
+- **v9.0** — 精选电台包(BBC/NTS/NASA) / 2945 台目录
+- **v8.0** — 桌面小部件 / 本地已下载库 / 播放排行榜 / 省流量 / 浅色主题
+- **v7.0** — 歌单系统 / LRCLIB 歌词 / 耳机拔出暂停 / 媒体按钮线控
+- **v6.0** — 性能打磨 / ListView 复用 / 目录缓存 / 搜索历史
+- **v5.0** — 音源大扩展(Openverse/IA/georgeblood)
+- **v4.0** — 专业 UI / 进度条拖拽 / 均衡器 / 倍速 / 睡眠定时
 
 ## 📄 License
 
