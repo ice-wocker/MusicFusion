@@ -1,0 +1,58 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="play"
+        android:enabled="true"
+        android:icon="@drawable/ic_play"
+        android:shortcutShortLabel="@string/shortcut_play"
+        android:shortcutLongLabel="@string/shortcut_play_long">
+        <intent
+            android:action="SHORTCUT_PLAY"
+            android:targetPackage="com.musicfusion.app"
+            android:targetClass="com.musicfusion.app.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ic_search"
+        android:shortcutShortLabel="@string/shortcut_search"
+        android:shortcutLongLabel="@string/shortcut_search_long">
+        <intent
+            android:action="SHORTCUT_SEARCH"
+            android:targetPackage="com.musicfusion.app"
+            android:targetClass="com.musicfusion.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="radio"
+        android:enabled="true"
+        android:icon="@drawable/ic_radio"
+        android:shortcutShortLabel="@string/shortcut_radio"
+        android:shortcutLongLabel="@string/shortcut_radio_long">
+        <intent
+            android:action="SHORTCUT_RADIO"
+            android:targetPackage="com.musicfusion.app"
+            android:targetClass="com.musicfusion.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="download"
+        android:enabled="true"
+        android:icon="@drawable/ic_download"
+        android:shortcutShortLabel="@string/shortcut_download"
+        android:shortcutLongLabel="@string/shortcut_download_long">
+        <intent
+            android:action="SHORTCUT_DOWNLOAD"
+            android:targetPackage="com.musicfusion.app"
+            android:targetClass="com.musicfusion.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="smart"
+        android:enabled="true"
+        android:icon="@drawable/ic_smart"
+        android:shortcutShortLabel="@string/shortcut_smart"
+        android:shortcutLongLabel="@string/shortcut_smart_long">
+        <intent
+            android:action="SHORTCUT_SMART"
+            android:targetPackage="com.musicfusion.app"
+            android:targetClass="com.musicfusion.app.MainActivity" />
+    </shortcut>
+</shortcuts>

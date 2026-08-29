@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # MusicFusion 构建链 (复用卫士工具链)
 set -e
-B=~/musicfusion
-cd $B
+B=$(dirname "$0")
+cd "$B"
 rm -rf classes gen && mkdir -p classes gen
 aapt package -f -M AndroidManifest.xml -S res -I ~/apkbuild/android.jar -J gen
 javac -source 1.8 -target 1.8 -bootclasspath ~/apkbuild/android.jar \

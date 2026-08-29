@@ -32,6 +32,25 @@ public class EqPresets {
 
     public static int count() { return NAMES.length; }
     public static String name(int i) { return NAMES[i]; }
+    public static int[] getPreset(int i) { return (i >= 0 && i < PRESETS.length) ? PRESETS[i] : null; }
+    public static int[] getPreset(String n) {
+        for (int i = 0; i < NAMES.length; i++) if (NAMES[i].equalsIgnoreCase(n)) return PRESETS[i];
+        return null;
+    }
+    public static float[] getPresetFloat(int i) { 
+        int[] p = getPreset(i); 
+        if (p == null) return null; 
+        float[] f = new float[p.length]; 
+        for (int j = 0; j < p.length; j++) f[j] = p[j]; 
+        return f; 
+    }
+    public static float[] getPresetFloat(String n) { 
+        int[] p = getPreset(n); 
+        if (p == null) return null; 
+        float[] f = new float[p.length]; 
+        for (int j = 0; j < p.length; j++) f[j] = p[j]; 
+        return f; 
+    }
 
     public interface EqPresetsApply {
         short bandCount();

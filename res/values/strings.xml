@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MusicFusion</string>
+    <string name="settings">设置</string>
+    <string name="search_hint">搜索音乐、艺术家、专辑…</string>
+    <string name="searching">搜索: </string>
+    <string name="results"> 条结果</string>
+    <string name="not_playing">未播放</string>
+    <string name="minibar">迷你播放栏</string>
+    <string name="click_more">点击查看更多</string>
+    <string name="sleep">睡眠定时</string>
+    <string name="speed">播放倍速</string>
+    <string name="equalizer">均衡器</string>
+    <string name="preset">EQ 预设</string>
+    <string name="noise">白噪声</string>
+    <string name="stats">统计数据</string>
+    <string name="theme">主题切换</string>
+    <string name="datasaver">省流量模式</string>
+    <string name="refresh_cat">刷新离线目录</string>
+    <string name="clear_hist">清空搜索历史</string>
+    <string name="lang">语言</string>
+    <string name="about">关于</string>
+
+    <!-- Widget -->
+    <string name="widget_cover_desc">专辑封面</string>
+    <string name="widget_play">播放/暂停</string>
+    <string name="widget_prev">上一曲</string>
+    <string name="widget_next">下一曲</string>
+
+    <!-- Notification -->
+    <string name="notif_cover">专辑封面</string>
+    <string name="notif_play">播放</string>
+    <string name="notif_pause">暂停</string>
+    <string name="notif_prev">上一曲</string>
+    <string name="notif_next">下一曲</string>
+    <string name="notif_stop">停止</string>
+
+    <!-- Shortcuts -->
+    <string name="shortcut_play">继续播放</string>
+    <string name="shortcut_play_long">继续上次播放的曲目</string>
+    <string name="shortcut_search">搜索</string>
+    <string name="shortcut_search_long">搜索音乐</string>
+    <string name="shortcut_radio">电台</string>
+    <string name="shortcut_radio_long">打开电台直播</string>
+    <string name="shortcut_download">下载</string>
+    <string name="shortcut_download_long">管理离线下载</string>
+    <string name="shortcut_smart">智能歌单</string>
+    <string name="shortcut_smart_long">生成智能歌单</string>
+</resources>

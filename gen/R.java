@@ -11,19 +11,109 @@ public final class R {
     public static final class attr {
     }
     public static final class drawable {
-        public static final int ic_launcher=0x7f020000;
+        public static final int ic_download=0x7f020000;
+        public static final int ic_launcher=0x7f020001;
+        public static final int ic_next=0x7f020002;
+        public static final int ic_pause=0x7f020003;
+        public static final int ic_play=0x7f020004;
+        public static final int ic_prev=0x7f020005;
+        public static final int ic_radio=0x7f020006;
+        public static final int ic_search=0x7f020007;
+        public static final int ic_smart=0x7f020008;
+        public static final int ic_stop=0x7f020009;
     }
     public static final class id {
-        public static final int w_next=0x7f050004;
-        public static final int w_pause=0x7f050003;
-        public static final int w_prev=0x7f050002;
-        public static final int w_state=0x7f050001;
-        public static final int w_title=0x7f050000;
+        public static final int nbig_artist=0x7f060008;
+        public static final int nbig_cover=0x7f060006;
+        public static final int nbig_lyric=0x7f060009;
+        public static final int nbig_next=0x7f06000d;
+        public static final int nbig_play=0x7f06000c;
+        public static final int nbig_prev=0x7f06000b;
+        public static final int nbig_progress=0x7f06000a;
+        public static final int nbig_root=0x7f060005;
+        public static final int nbig_stop=0x7f06000e;
+        public static final int nbig_title=0x7f060007;
+        public static final int nsmall_artist=0x7f060012;
+        public static final int nsmall_cover=0x7f060010;
+        public static final int nsmall_next=0x7f060014;
+        public static final int nsmall_play=0x7f060013;
+        public static final int nsmall_root=0x7f06000f;
+        public static final int nsmall_title=0x7f060011;
+        public static final int w_next=0x7f060004;
+        public static final int w_pause=0x7f060003;
+        public static final int w_prev=0x7f060002;
+        public static final int w_state=0x7f060001;
+        public static final int w_title=0x7f060000;
+        public static final int widget_artist=0x7f060018;
+        public static final int widget_cover=0x7f060016;
+        public static final int widget_lyric=0x7f06001a;
+        public static final int widget_next=0x7f06001d;
+        public static final int widget_play=0x7f06001c;
+        public static final int widget_prev=0x7f06001b;
+        public static final int widget_progress=0x7f060019;
+        public static final int widget_root=0x7f060015;
+        public static final int widget_title=0x7f060017;
     }
     public static final class layout {
         public static final int music_widget=0x7f030000;
+        public static final int notification_big=0x7f030001;
+        public static final int notification_small=0x7f030002;
+        public static final int widget_2x1=0x7f030003;
+        public static final int widget_4x1=0x7f030004;
+        public static final int widget_4x2=0x7f030005;
+    }
+    public static final class string {
+        public static final int about=0x7f050013;
+        public static final int app_name=0x7f050000;
+        public static final int clear_hist=0x7f050011;
+        public static final int click_more=0x7f050007;
+        public static final int datasaver=0x7f05000f;
+        public static final int equalizer=0x7f05000a;
+        public static final int lang=0x7f050012;
+        public static final int minibar=0x7f050006;
+        public static final int noise=0x7f05000c;
+        public static final int not_playing=0x7f050005;
+        /**  Notification 
+         */
+        public static final int notif_cover=0x7f050018;
+        public static final int notif_next=0x7f05001c;
+        public static final int notif_pause=0x7f05001a;
+        public static final int notif_play=0x7f050019;
+        public static final int notif_prev=0x7f05001b;
+        public static final int notif_stop=0x7f05001d;
+        public static final int preset=0x7f05000b;
+        public static final int refresh_cat=0x7f050010;
+        public static final int results=0x7f050004;
+        public static final int search_hint=0x7f050002;
+        public static final int searching=0x7f050003;
+        public static final int settings=0x7f050001;
+        public static final int shortcut_download=0x7f050024;
+        public static final int shortcut_download_long=0x7f050025;
+        /**  Shortcuts 
+         */
+        public static final int shortcut_play=0x7f05001e;
+        public static final int shortcut_play_long=0x7f05001f;
+        public static final int shortcut_radio=0x7f050022;
+        public static final int shortcut_radio_long=0x7f050023;
+        public static final int shortcut_search=0x7f050020;
+        public static final int shortcut_search_long=0x7f050021;
+        public static final int shortcut_smart=0x7f050026;
+        public static final int shortcut_smart_long=0x7f050027;
+        public static final int sleep=0x7f050008;
+        public static final int speed=0x7f050009;
+        public static final int stats=0x7f05000d;
+        public static final int theme=0x7f05000e;
+        /**  Widget 
+         */
+        public static final int widget_cover_desc=0x7f050014;
+        public static final int widget_next=0x7f050017;
+        public static final int widget_play=0x7f050015;
+        public static final int widget_prev=0x7f050016;
     }
     public static final class xml {
-        public static final int music_widget_info=0x7f040000;
+        public static final int automotive_app_desc=0x7f040000;
+        public static final int music_widget_info=0x7f040001;
+        public static final int shortcuts=0x7f040002;
+        public static final int widget_2x_info=0x7f040003;
     }
 }

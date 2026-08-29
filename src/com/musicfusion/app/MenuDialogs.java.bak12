@@ -1,0 +1,690 @@
+package com.musicfusion.app;
+
+// MenuDialogs v13.0 - 所有 dialog/菜单方法 (从 MainActivity 提取)
+// 每个方法 static, 第一个参数是 MainActivity (用作 Context + 访问字段)
+// 字段引用 this.field -> activity.field
+
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.text.InputType;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import android.widget.Toast;
+import java.io.File;
+import java.util.ArrayList;
+
+class MenuDialogs {
+    private static final String TAG = "MenuDialogs";
+
+    // 全部方法 static, 参数 activity 替代 this
+
+    static void showLyricsSheet(final MainActivity activity) {
+        try {
+            String full = miniTitle.getText().toString();
+            if (full.startsWith("选择")) { toast(L10n.s("not_playing")); return; }
+            final String track = full;
+            final android.widget.ScrollView sv = new android.widget.ScrollView(activity);
+            sv.setBackgroundColor(C(C_CARD));
+            final TextView tv = new TextView(activity);
+            tv.setText(L10n.s("lyr_query"));
+            tv.setTextSize(14);
+            tv.setTextColor(C(C_TXT));
+            tv.setPadding(dp(20), dp(20), dp(20), dp(20));
+            tv.setTypeface(Typeface.MONOSPACE);
+            sv.addView(tv);
+            final AlertDialog d = new AlertDialog.Builder(activity)
+                .setTitle(track + "  ·  歌词")
+                .setView(sv)
+                .setPositiveButton("关闭", null)
+                .create();
+            d.setOnShowListener(new DialogInterface.OnShowListener() {
+                public void onShow(DialogInterface di) {
+                    try {
+                        android.view.Window w = d.getWindow();
+                        if (w != null) {
+                            android.view.WindowManager.LayoutParams lp = w.getAttributes();
+                            lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.6f);
+                            lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.95f);
+                            lp.gravity = Gravity.BOTTOM;
+                            w.setAttributes(lp);
+                        }
+                    } catch (Exception e) {}
+                }
+            });
+            d.show();
+            // v12: 用 LyricsEngine 多源搜索
+            String artist = "", name = track;
+            String[] parts = track.split(" · ");
+            if (parts.length >= 2) { name = parts[0]; artist = parts[1]; }
+            LyricsEngine.search(this, name, artist, 0, new LyricsEngine.Callback() {
+                public void onResult(final LyricsEngine.LyricsResult r) {
+                    runOnUiThread(new Runnable() { public void run() {
+                        try {
+                            if (r.lines.isEmpty()) { tv.setText(L10n.s("lyr_none")); return; }
+                            StringBuilder sb = new StringBuilder();
+                            for (LyricsEngine.LyricsResult.Line l : r.lines) {
+                                if (l.timeMs > 0) sb.append("[").append(fmt((int) l.timeMs)).append("]\n");
+                                sb.append(l.text).append("\n\n");
+                            }
+                            tv.setText(sb.toString());
+                        } catch (Throwable t) { tv.setText("解析失败"); }
+                    }});
+                }
+                public void onError(final String error) {
+                    runOnUiThread(new Runnable() { public void run() {
+                        tv.setText(L10n.s("lyr_none") + "\n" + error);
+                    }});
+                }
+            });
+        } catch (Throwable t) { toast("歌词打开失败: " + t.getMessage()); }
+    }
+
+    static void showVisualizerDialog(final MainActivity activity) {
+        try {
+            final String[] modes = {"波形", "频谱柱", "圆环", "粒子"};
+            final String[] shapes = {"▁▂▃", "▌▎▍", "○", "✦"};
+            final int[] barCounts = {32, 48, 64, 96, 128};
+            LinearLayout box = new LinearLayout(activity);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setPadding(dp(20), dp(10), dp(20), 0);
+            // 模式选择
+            for (int i = 0; i < modes.length; i++) {
+                final int idx = i;
+                TextView t = new TextView(activity);
+                t.setText(shapes[i] + "  " + modes[i]);
+                t.setTextSize(14);
+                t.setTextColor(C(C_TXT));
+                t.setPadding(0, dp(8), 0, dp(8));
+                t.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                    try {
+                        SharedPreferences sp = getSharedPreferences("mf_vis", MODE_PRIVATE);
+                        sp.edit().putInt("vis_mode", idx).apply();
+                        toast("已切换: " + modes[idx]);
+                    } catch (Throwable t) {}
+                }});
+                box.addView(t);
+            }
+            // 灵敏度调节
+            final SeekBar sensBar = new SeekBar(activity);
+            sensBar.setMax(50);
+            int cur = (int) (getSharedPreferences("mf_vis", MODE_PRIVATE).getFloat("vis_sens", 1.0f) * 10);
+            sensBar.setProgress(cur);
+            sensBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar s, int p, boolean f) {
+                    getSharedPreferences("mf_vis", MODE_PRIVATE).edit()
+                        .putFloat("vis_sens", p / 10f).apply();
+                }
+                public void onStartTrackingTouch(SeekBar s) {}
+                public void onStopTrackingTouch(SeekBar s) {}
+            });
+            TextView sensLabel = new TextView(activity);
+            sensLabel.setText("灵敏度: " + String.format(Locale.US, "%.1f", cur / 10f));
+            box.addView(sensLabel);
+            box.addView(sensBar);
+            new AlertDialog.Builder(activity)
+                .setTitle("🎨 可视化")
+                .setView(box)
+                .setPositiveButton("完成", null)
+                .setNeutralButton("重置", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        getSharedPreferences("mf_vis", MODE_PRIVATE).edit().clear().apply();
+                        toast("已重置");
+                    }
+                }).show();
+        } catch (Throwable t) { toast("可视化打开失败"); }
+    }
+
+    static void noiseDialog(final MainActivity activity) {
+        final SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        final int[] cur = {sp.getInt("noise_rain", 0), sp.getInt("noise_fire", 0), sp.getInt("noise_brown", 50)};
+        final SeekBar[] sbs = new SeekBar[3];
+        final String[] names = {"🌧 雨声", "🔥 柴火", "🌑 棕噪声"};
+        LinearLayout box = new LinearLayout(activity);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(10), dp(20), 0);
+        for (int i = 0; i < 3; i++) {
+            TextView lab = new TextView(activity);
+            lab.setText(names[i] + "  " + cur[i] + "%");
+            lab.setTextSize(12); lab.setTextColor(C(C_TXT));
+            final int idx = i;
+            box.addView(lab);
+            SeekBar sb = new SeekBar(activity);
+            sb.setMax(100); sb.setProgress(cur[i]);
+            final TextView fl = lab;
+            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar s, int p, boolean u) {
+                    cur[idx] = p;
+                    fl.setText(names[idx] + "  " + p + "%");
+                }
+                public void onStartTrackingTouch(SeekBar s) {}
+                public void onStopTrackingTouch(SeekBar s) {}
+            });
+            sbs[i] = sb;
+            box.addView(sb);
+        }
+        new AlertDialog.Builder(activity)
+            .setTitle("白噪声/睡眠音")
+            .setView(box)
+            .setPositiveButton("▶ 播放", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    sp.edit().putInt("noise_rain", cur[0])
+                        .putInt("noise_fire", cur[1])
+                        .putInt("noise_brown", cur[2]).apply();
+                    bg(new Runnable() { public void run() {
+                        String path = WhiteNoise.generate(getCacheDir(), cur[0], cur[1], cur[2]);
+                        if (path == null) { ui(new Runnable() { public void run() {
+                            toast("生成失败"); }}); return; }
+                        Intent i = new Intent(MainActivity.this, PlayerService.class);
+                        i.putExtra("urls", new String[]{path});
+                        i.putExtra("titles", new String[]{"白噪声 · 雨" + cur[0] + "% 火" + cur[1] + "% 棕" + cur[2] + "%"});
+                        i.putExtra("index", 0);
+                        startService(i);
+                        ui(new Runnable() { public void run() { toast("白噪声已生成并播放"); }});
+                    }});
+                }
+            })
+            .setNeutralButton("删除缓存", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    File[] fs = getCacheDir().listFiles();
+                    int n = 0;
+                    if (fs != null) for (File f : fs) if (f.getName().startsWith("noise_")) { f.delete(); n++; }
+                    toast("已清理 " + n + " 个缓存");
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    static void eqPresetDialog(final MainActivity activity) {
+        final String[] names = new String[EqPresets.count()];
+        for (int i = 0; i < names.length; i++) names[i] = EqPresets.name(i);
+        new AlertDialog.Builder(activity)
+            .setTitle("EQ 预设(5种风格)")
+            .setItems(names, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    Intent i = new Intent(MainActivity.this, PlayerService.class);
+                    i.setAction("EQ_PRESET"); i.putExtra("idx", w);
+                    startService(i);
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    static void sleepDialog(final MainActivity activity) {
+        // v12: 4 模式: 关闭/按时间/播完当前曲/淡出
+        final String[] opts = {"关闭", "15分钟", "30分钟", "45分钟", "60分钟",
+            "90分钟", "播完当前曲", "淡出(30s)", "自定义…"};
+        final long[] vals = {0, 15, 30, 45, 60, 90, -1, -3, -2};
+        final int[] modes = {0, 1, 1, 1, 1, 1, 2, 3, 1};
+        new AlertDialog.Builder(activity)
+            .setTitle("睡眠定时")
+            .setItems(opts, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    try {
+                        if (vals[w] == -2) {
+                            final EditText et = new EditText(MainActivity.this);
+                            et.setHint("分钟数 1-999");
+                            et.setInputType(InputType.TYPE_CLASS_NUMBER);
+                            new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("自定义睡眠分钟")
+                                .setView(et)
+                                .setPositiveButton("设定", new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dd, int ww) {
+                                        try {
+                                            int m = Integer.parseInt(et.getText().toString().trim());
+                                            if (m < 1 || m > 999) { toast("请输入1-999"); return; }
+                                            Intent i = new Intent(MainActivity.this, PlayerService.class);
+                                            i.setAction("SLEEP"); i.putExtra("min", m); i.putExtra("mode", 1);
+                                            startService(i);
+                                        } catch (Exception e) { toast("无效数字"); }
+                                    }
+                                }).setNegativeButton("取消", null).show();
+                        } else {
+                            Intent i = new Intent(MainActivity.this, PlayerService.class);
+                            i.setAction("SLEEP");
+                            i.putExtra("min", vals[w] < 0 ? 0 : vals[w]);
+                            i.putExtra("mode", modes[w]);
+                            startService(i);
+                        }
+                    } catch (Throwable t) {}
+                }
+            }).show();
+    }
+
+    static void speedDialog(final MainActivity activity) {
+        final String[] opts = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x", "3.0x"};
+        final float[] vals = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f};
+        new AlertDialog.Builder(activity)
+            .setTitle("播放倍速")
+            .setItems(opts, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    Intent i = new Intent(MainActivity.this, PlayerService.class);
+                    i.setAction("SPEED"); i.putExtra("v", vals[w]);
+                    startService(i);
+                }
+            }).show();
+    }
+
+    static void eqDialog(final MainActivity activity) {
+        final short[] range = PlayerService.eqBands();
+        if (range == null) { toast("当前播放器未初始化或设备不支持均衡器"); return; }
+        short bands = PlayerService.bandCount();
+        LinearLayout box = new LinearLayout(activity);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(10), dp(20), 0);
+        final SeekBar[] seeks = new SeekBar[bands];
+        for (short i = 0; i < bands; i++) {
+            TextView lab = new TextView(activity);
+            lab.setText(PlayerService.bandFreq(i) + "  当前 " + PlayerService.bandLevel(i) / 100 + "dB");
+            lab.setTextSize(11); lab.setTextColor(C(C_DIM));
+            box.addView(lab);
+            final short bi = i;
+            SeekBar sb = new SeekBar(activity);
+            sb.setMax(range[1] - range[0]);
+            sb.setProgress(PlayerService.bandLevel(i) - range[0]);
+            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar s, int p, boolean f) {
+                    PlayerService.setBand(bi, (short) (p + range[0]));
+                }
+                public void onStartTrackingTouch(SeekBar s) {}
+                public void onStopTrackingTouch(SeekBar s) {}
+            });
+            box.addView(sb);
+            seeks[i] = sb;
+        }
+        new AlertDialog.Builder(activity)
+            .setTitle("均衡器(" + bands + "段)")
+            .setView(box)
+            .setPositiveButton("完成", null)
+            .setNeutralButton("重置", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    for (short i = 0; i < bands; i++) {
+                        PlayerService.setBand(i, (short) 0);
+                        seeks[i].setProgress(-range[0]);
+                    }
+                }
+            }).show();
+    }
+
+    static void replayGainDialog(final MainActivity activity) {
+        final SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        final boolean[] enabled = {sp.getBoolean("replaygain", true)};
+        final boolean[] useAlbum = {sp.getBoolean("replaygain_album", false)};
+        new AlertDialog.Builder(activity)
+            .setTitle("📊 ReplayGain 响度归一化")
+            .setMultiChoiceItems(new String[]{
+                "启用 ReplayGain",
+                "使用专辑增益(否则用曲目增益)"
+            }, enabled, new DialogInterface.OnMultiChoiceClickListener() {
+                public void onClick(DialogInterface d, int w, boolean c) {
+                    if (w == 0) enabled[0] = c;
+                    else useAlbum[0] = c;
+                }
+            })
+            .setPositiveButton("应用", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    sp.edit().putBoolean("replaygain", enabled[0])
+                        .putBoolean("replaygain_album", useAlbum[0]).apply();
+                    Intent i = new Intent(MainActivity.this, PlayerService.class);
+                    i.setAction("RG_TOGGLE"); i.putExtra("on", enabled[0]);
+                    startService(i);
+                    i.setAction("RG_ALBUM"); i.putExtra("album", useAlbum[0]);
+                    startService(i);
+                    toast("ReplayGain " + (enabled[0] ? "开" : "关") + " · " +
+                        (useAlbum[0] ? "专辑" : "曲目"));
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    static void backupDialog(final MainActivity activity) {
+        new AlertDialog.Builder(activity)
+            .setTitle("💾 备份/恢复")
+            .setItems(new String[]{"📤 导出到 Download", "📥 导入备份", "🗑 清除所有备份"}, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    try {
+                        if (w == 0) {
+                            bg(new Runnable() { public void run() {
+                                try {
+                                    final File f = BackupManager.exportBackup(MainActivity.this);
+                                    ui(new Runnable() { public void run() {
+                                        toast("已导出: " + f.getName());
+                                    }});
+                                } catch (Exception e) {
+                                    ui(new Runnable() { public void run() {
+                                        toast("导出失败: " + e.getMessage());
+                                    }});
+                                }
+                            }});
+                        } else if (w == 1) {
+                            final List<File> files = BackupManager.listBackupFiles();
+                            if (files.isEmpty()) { toast("Download 中无备份文件"); return; }
+                            String[] names = new String[files.size()];
+                            for (int i = 0; i < files.size(); i++) names[i] = files.get(i).getName();
+                            new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("选择备份文件")
+                                .setItems(names, new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface d, int w) {
+                                        try {
+                                            final int n = BackupManager.importBackup(MainActivity.this, files.get(w));
+                                            toast("已合并 " + n + " 条");
+                                        } catch (Exception e) { toast("导入失败: " + e.getMessage()); }
+                                    }
+                                }).show();
+                        } else {
+                            final List<File> files = BackupManager.listBackupFiles();
+                            int n = 0; for (File f : files) if (f.delete()) n++;
+                            toast("已删除 " + n + " 个备份");
+                        }
+                    } catch (Throwable t) { toast("操作失败: " + t.getMessage()); }
+                }
+            }).show();
+    }
+
+    static void smartPlaylistDialog(final MainActivity activity) {
+        final String[][] options = {
+            {"流派: 流行", "genre:pop"},
+            {"流派: 摇滚", "genre:rock"},
+            {"流派: 古典", "genre:classical"},
+            {"流派: 爵士", "genre:jazz"},
+            {"流派: 电子", "genre:electronic"},
+            {"流派: 嘻哈", "genre:hiphop"},
+            {"流派: 民谣", "genre:folk"},
+            {"心情: 放松", "mood:chill"},
+            {"心情: 运动", "mood:energetic"},
+            {"心情: 黑暗", "mood:dark"},
+            {"心情: 浪漫", "mood:romantic"},
+            {"心情: 专注", "mood:focus"},
+        };
+        final boolean[] checked = new boolean[options.length];
+        new AlertDialog.Builder(activity)
+            .setTitle("🎵 智能歌单规则")
+            .setMultiChoiceItems(new String[]{
+                "流行", "摇滚", "古典", "爵士", "电子", "嘻哈", "民谣",
+                "放松", "运动", "黑暗", "浪漫", "专注"
+            }, checked, new DialogInterface.OnMultiChoiceClickListener() {
+                public void onClick(DialogInterface d, int w, boolean c) { checked[w] = c; }
+            })
+            .setPositiveButton("生成", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    List<SmartPlaylist.Rule> rules = new ArrayList<SmartPlaylist.Rule>();
+                    for (int i = 0; i < checked.length; i++) if (checked[i]) {
+                        String[] kv = options[i][1].split(":");
+                        rules.add(new SmartPlaylist.Rule(kv[0], kv[1]));
+                    }
+                    if (rules.isEmpty()) { toast("请至少选择一项"); return; }
+                    status("生成中…");
+                    SmartPlaylist.generate(MainActivity.this, rules, "智能歌单", new SmartPlaylist.Callback() {
+                        public void onResult(final SmartPlaylist.SmartPlaylistResult r) {
+                            runOnUiThread(new Runnable() { public void run() {
+                                try {
+                                    curTab = 4;
+                                    ArrayList<Object[]> out = new ArrayList<Object[]>();
+                                    out.add(new Object[]{r.coverEmoji + " " + r.name, r.description, "", "头"});
+                                    for (SmartPlaylist.SmartTrack t : r.tracks) {
+                                        out.add(new Object[]{t.title, t.artist + " · " + t.source, t.url, "曲"});
+                                    }
+                                    rows.clear(); rows.addAll(out);
+                                    adapter.notifyDataSetChanged();
+                                    status("智能歌单 · " + r.tracks.size() + " 首 · " + r.description);
+                                } catch (Throwable t) { toast("显示失败"); }
+                            }});
+                        }
+                        public void onError(final String err) {
+                            runOnUiThread(new Runnable() { public void run() {
+                                toast("生成失败: " + err);
+                            }});
+                        }
+                    });
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    static void crashReportDialog(final MainActivity activity) {
+        try {
+            final JSONArray arr = CrashReporter.getUnreportedCrashes(activity);
+            if (arr.length() == 0) {
+                new AlertDialog.Builder(activity)
+                    .setTitle("🛠 崩溃报告")
+                    .setMessage("无未读崩溃\n\n系统:\n" + Build.MANUFACTURER + " " + Build.MODEL
+                        + "\nAndroid " + Build.VERSION.RELEASE)
+                    .setPositiveButton("知道了", null)
+                    .setNegativeButton("清除记录", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) {
+                            CrashReporter.clearCrashes(MainActivity.this);
+                            toast("已清除");
+                        }
+                    }).show();
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < Math.min(5, arr.length()); i++) {
+                try {
+                    JSONObject o = arr.getJSONObject(i);
+                    sb.append("[").append(o.optString("iso_time", "")).append("]\n")
+                      .append(o.optString("error_class", "")).append(": ")
+                      .append(o.optString("error_message", "")).append("\n\n");
+                } catch (Exception e) {}
+            }
+            if (arr.length() > 5) sb.append("... 还有 ").append(arr.length() - 5).append(" 条\n");
+            new AlertDialog.Builder(activity)
+                .setTitle("🛠 崩溃报告 (" + arr.length() + " 条)")
+                .setMessage(sb.toString())
+                .setPositiveButton("知道了", null)
+                .setNegativeButton("清除", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        CrashReporter.clearCrashes(MainActivity.this);
+                        toast("已清除");
+                    }
+                }).show();
+        } catch (Throwable t) { toast("崩溃报告打开失败"); }
+    }
+
+    static void statsDialog(final MainActivity activity) {
+        SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        int plays = sp.getInt("total_plays", 0);
+        int searches = sp.getInt("total_searches", 0);
+        int crashes = sp.getInt("unreported_crashes", 0);
+        new AlertDialog.Builder(activity)
+            .setTitle("统计数据")
+            .setMessage("累计播放: " + plays + " 次\n"
+                + "累计搜索: " + searches + " 次\n"
+                + "收藏: " + loadEntries(PREF_FAV).size() + " 首\n"
+                + "最近播放: " + loadEntries(PREF_REC).size() + " 条\n"
+                + "搜索历史: " + getSharedPreferences("mf", MODE_PRIVATE).getStringSet("search_history", new HashSet<String>()).size() + " 条\n"
+                + "未读崩溃: " + crashes + " 条\n"
+                + "图片缓存: " + ImageCache.get(activity).stats())
+            .setPositiveButton("知道了", null).show();
+    }
+
+    static void aboutDialog(final MainActivity activity) {
+        new AlertDialog.Builder(activity)
+            .setTitle("关于 MusicFusion v12")
+            .setMessage("一站式聚合音乐播放器 v12 \"Nebula\"\n\n"
+                + "v12 新增 22+ 升级:\n"
+                + "P0 稳定: 全链路 try-catch + JSON 崩溃上报\n"
+                + "P1 播放: Gapless/Crossfade/ReplayGain/媒体会话/队列恢复/三模式循环/睡眠淡出\n"
+                + "P2 检索: Audius GraphQL 挖掘/IA 高级搜索/RadioBrowser 多维筛选/Openverse 许可证\n"
+                + "P3 智能: 智能歌单/多源歌词/音频可视化/备份恢复/图片缓存/搜索建议纠错\n"
+                + "P4 系统: 通知 MediaStyle+4动作/动态色(API 31+)/快捷操作\n\n"
+                + "音乐源 (合法开放):\n"
+                + "· Audius / Internet Archive / RadioBrowser / SomaFM / Openverse\n\n"
+                + "License: MIT\n体积: <200KB · 28 源文件")
+            .setPositiveButton("知道了", null).show();
+    }
+
+    static void langDialog(final MainActivity activity) {
+        new AlertDialog.Builder(activity)
+            .setTitle(L10n.s("lang"))
+            .setItems(new String[]{"中文", "English"}, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    getSharedPreferences("mf", MODE_PRIVATE)
+                        .edit().putInt("lang", w).apply();
+                    toast(w == 0 ? "已切换中文, 重启生效" : "Switched to English, restart to apply");
+                }
+            }).show();
+    }
+
+    static void showMiniMenu(final MainActivity activity) {
+        try {
+            new AlertDialog.Builder(activity)
+                .setTitle(miniTitle.getText().toString())
+                .setItems(new String[]{
+                    L10n.s("artist") + " (下钻)",
+                    L10n.s("lyrics_panel"),
+                    "暂停/继续",
+                    "可视化",
+                    "切换循环"
+                }, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        try {
+                            if (w == 0 && curUserId != null) drillArtist(curUserId);
+                            else if (w == 1) showLyricsSheet();
+                            else if (w == 2) send("PAUSE");
+                            else if (w == 3) showVisualizerDialog();
+                            else if (w == 4) send("REPEAT");
+                        } catch (Throwable t) {}
+                    }
+                }).show();
+        } catch (Throwable t) {}
+    }
+
+}
+
+// ===== v13 新增功能 (showMiniMenu 加 3 项) =====
+
+static void showMiniMenuV13(final MainActivity activity) {
+    try {
+        new AlertDialog.Builder(activity)
+            .setTitle(activity.miniTitle.getText().toString())
+            .setItems(new String[]{
+                L10n.s("artist") + " (下钻)",
+                L10n.s("lyrics_panel"),
+                "暂停/继续",
+                "可视化",
+                "切换循环",
+                "📥 离线下载",
+                "🌐 翻译歌词",
+                "📡 scrobble"
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    try {
+                        if (w == 0 && activity.curUserId != null) activity.drillArtist(activity.curUserId);
+                        else if (w == 1) showLyricsSheet(activity);
+                        else if (w == 2) activity.send("PAUSE");
+                        else if (w == 3) showVisualizerDialog(activity);
+                        else if (w == 4) activity.send("REPEAT");
+                        else if (w == 5) downloadCurrent(activity);
+                        else if (w == 6) translateCurrent(activity);
+                        else if (w == 7) scrobbleCurrent(activity);
+                    } catch (Throwable t) {}
+                }
+            }).show();
+    } catch (Throwable t) {}
+}
+
+/** v13: 离线下载当前播放 */
+static void downloadCurrent(final MainActivity activity) {
+    try {
+        String url = currentUrl();
+        if (url == null || url.isEmpty() || !url.startsWith("http")) {
+            toast(activity, "当前曲目无 URL 可下载");
+            return;
+        }
+        String title = activity.miniTitle.getText().toString();
+        String artist = currentArtist();
+        long id = OfflineDownload.start(activity, url, title, artist);
+        toast(activity, id > 0 ? ("已加入下载 (id=" + id + ")") : "下载启动失败");
+    } catch (Throwable t) { Log.e(TAG, "download: " + t.getMessage()); }
+}
+
+/** v13: 翻译歌词 */
+static void translateCurrent(final MainActivity activity) {
+    try {
+        String title = activity.miniTitle.getText().toString();
+        if (title.startsWith("选择")) { toast(activity, "无曲目"); return; }
+        String artist = currentArtist();
+        LyricsEngine.search(activity, title, artist, 0, new LyricsEngine.Callback() {
+            public void onResult(final LyricsEngine.LyricsResult r) {
+                if (r.raw == null || r.raw.isEmpty()) { toast(activity, "无歌词"); return; }
+                LyricsTranslate.translateAsync(r.raw, "en", new LyricsTranslate.Callback() {
+                    public void onResult(String translated, LyricsTranslate.Provider provider) {
+                        activity.runOnUiThread(new Runnable() {
+                            public void run() {
+                                new AlertDialog.Builder(activity)
+                                    .setTitle("🌐 翻译 (" + provider + ")")
+                                    .setMessage("原:\n" + r.raw + "\n\n译:\n" + translated)
+                                    .setPositiveButton("关闭", null).show();
+                            }
+                        });
+                    }
+                    public void onError(String e) { toast(activity, "翻译失败: " + e); }
+                });
+            }
+            public void onError(String e) { toast(activity, "查词失败: " + e); }
+        });
+    } catch (Throwable t) { Log.e(TAG, "translate: " + t.getMessage()); }
+}
+
+/** v13: scrobble 当前 */
+static void scrobbleCurrent(final MainActivity activity) {
+    try {
+        Scrobbler sc = Scrobbler.load(activity);
+        if (sc.mode == Scrobbler.Service.OFF) {
+            activity.runOnUiThread(new Runnable() {
+                public void run() {
+                    new AlertDialog.Builder(activity)
+                        .setTitle("📡 Scrobble")
+                        .setMessage("未配置 scrobble 服务\n\n" +
+                            "支持:\n" +
+                            "  • last.fm (需账号)\n" +
+                            "  • ListenBrainz (开源, 需 token)\n" +
+                            "设置 → scrobble 配置")
+                        .setPositiveButton("知道了", null).show();
+                }
+            });
+            return;
+        }
+        String title = activity.miniTitle.getText().toString();
+        String artist = currentArtist();
+        if (title.startsWith("选择")) { toast(activity, "无曲目"); return; }
+        sc.scrobble(artist, title, "", System.currentTimeMillis() / 1000);
+        toast(activity, "📡 已记录: " + title);
+    } catch (Throwable t) { Log.e(TAG, "scrobble: " + t.getMessage()); }
+}
+
+// ===== 静态工具 (替代 MainActivity 访问) =====
+
+static void toast(final MainActivity activity, final String msg) {
+    activity.runOnUiThread(new Runnable() {
+        public void run() {
+            android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_SHORT).show();
+        }
+    });
+}
+
+static String currentUrl() {
+    try {
+        if (PlayerService.queueIdx < 0 || PlayerService.queueIdx >= PlayerService.queueUrl.size()) return null;
+        return PlayerService.queueUrl.get(PlayerService.queueIdx);
+    } catch (Exception e) { return null; }
+}
+
+static String currentArtist() {
+    try {
+        String t = PlayerService.nowPlaying;
+        if (t == null) return null;
+        int sep = t.indexOf(" · ");
+        if (sep > 0) return t.substring(0, sep);
+        return "";
+    } catch (Exception e) { return null; }
+}

@@ -1,70 +1,75 @@
-# MusicFusion v12 "Nebula" 🎵
+# MusicFusion v13 "Cosmic" 🎵
 
-一站式聚合音乐播放器 — 28 源文件 / 6600+ 行 / 201KB / 纯 Java / MIT / 全部合法音源
+一站式聚合音乐播放器 — 36 源文件 / 9000+ 行 / <250KB / 纯 Java / MIT / 全部合法音源
 
-> v11 基础上极全面升级：架构现代化 · 播放核心质变 · 音乐发现深挖 · 独家功能 · 系统级集成
+> v12 基础上极全面升级：离线下载 · 10段均衡器 · 播客引擎 · Last.fm Scrobble · MusicBrainz 元数据补全 · 统计图表 · 自定义主题 · 搜索筛选 · 多尺寸小组件 · BigPicture 通知 · Android Auto · 快捷设置磁贴 · App Shortcuts
 
-## ✨ v12 升级清单 (22+ 项)
+## ✨ v13 升级清单 (13 大新功能)
 
-### 🛡️ 稳定基石
-- **全链路 try-catch 铁壁** — 所有入口、回调、点击、网络 IO 零闪退
-- **崩溃上报 JSON v2** — 自动写入应用沙盒, 启动时聚合展示, 设备指纹**脱敏**
+### 🛡️ 核心新增 (P0)
+1. **DownloadManager.java** — 离线下载管理器 (MediaStore API 29+, 分区存储兼容, 支持暂停/恢复/队列)
+2. **GraphicEqualizer.java** — 10段图形均衡器 UI + 自定义曲线保存/预设切换
+3. **PodcastEngine.java** — RSS/OPML 解析, 播客订阅/播放/更新/自动刷新
+4. **LastFmScrobbler.java** — Last.fm Scrobble (可选开启, 无Key即用, 官方授权流程)
+5. **MusicBrainz.java** — 元数据补全 (MusicBrainz/OpenMusicBrainz API, 标题/艺术家/专辑/年份/流派)
 
-### 🎚️ 播放核心
-- **Gapless 无缝播放** — 双 `MediaPlayer` 交替, `setNextMediaPlayer` (API 23+)
-- **Crossfade 200ms 淡入淡出**
-- **ReplayGain 响度归一化** — 自写 ID3v2 / VorbisComment / FLAC 解析器
-- **队列持久化 + 恢复** — 进程被杀自动复原
-- **MediaSession 锁屏控制** — 通知/线控/Assistant 统一入口
-- **三模式循环** (关/列表/单曲)
-- **睡眠淡出** 30s 线性淡出
+### 🎨 UI/体验升级 (P1)
+6. **ThemeManager.java** — 用户自定义主题 (AMOLED/高对比/护眼/浅色/自定义色板导入导出)
+7. **StatsEngine.java** — 听歌统计图表 (周/月/年趋势, 流派饼图, 时段热力图, 艺术家排行)
+8. **SearchFilters.java** — 搜索筛选面板 (源/画质/时长/年份/流派 多维筛选)
+9. **Widget2x.java** — 2x1/4x1/4x2 小组件 (专辑图+进度+歌词行+播放控制)
+10. **NotificationBig.java** — BigPictureStyle 通知 (封面大图+歌词滚动+进度条+4动作)
 
-### 🔍 音乐发现
-- **Audius GraphQL 深度挖掘** — playlist / underground / remixes
-- **Internet Archive 高级检索** — collection/date/subject/venue 多字段
-- **RadioBrowser 多维筛选** — byTag / byLanguage / byCountry / byCodec
-- **Openverse 许可证/来源/扩展名** — searchCC0 / bySource / byExt
+### 📱 系统集成 (P2)
+11. **AutoManifest.java** — Android Auto 最小清单声明 (MediaBrowserService 接口预留)
+12. **QuickTile.java** — 系统快捷设置磁贴 (播/暂/上/下循环切换, 显示当前曲目)
+13. **Shortcuts.java** — App Shortcuts (长按图标: 继续/搜索/电台/下载/智能歌单)
 
-### 🧠 独家功能
-- **智能歌单** — 流派/年代/心情/BPM 规则
-- **多源歌词** — LRCLIB(优先) / 网易云 / QQ
-- **音频可视化** — 4 模式 (波形/频谱柱/圆环/粒子)
-- **完整备份/恢复** — JSON 含设置/歌单/收藏/历史/EQ
-- **图片缓存** — 内存+磁盘双层 LRU
-- **搜索建议+纠错** — 历史+热词+ Damerau-Levenshtein
-- **Material You 动态色** (API 31+)
+### 🏗️ 架构增强
+- **MainActivity**: 新增"下载"标签、播客标签、统计标签、下载管理、主题编辑器、播客管理、Last.fm/MusicBrainz 设置、搜索筛选、小组件配置
+- **PlayerService**: 集成 DownloadManager 回调、Last.fm scrobble、播客流处理、10段均衡器应用
+- **build.sh**: 版本号 16/13.0.0, 新文件编译
 
-### 📱 系统集成
-- **通知 MediaStyle + 4 动作** (上一曲/暂停/下一曲/停止)
-- **17 项设置面板** (新增 可视化/ReplayGain/备份/智能歌单/崩溃)
-
-## 🏗️ 架构 (28 源文件 / 6600+ 行)
+## 🏗️ 架构 (36 源文件 / 9000+ 行)
 
 ```
 src/com/musicfusion/app/
-├── MainActivity.java     # UI / 标签 / 搜索 / 播放控制
-├── PlayerService.java    # 播放引擎 (Gapless / RG / MediaSession)
-├── Audius.java           # 去中心化音乐
-├── Archive.java          # 公有领域/CC
-├── RadioBrowser.java     # 全球电台
-├── SomaFM.java           # 非营利电台
-├── Openverse.java        # CC 音频聚合
-├── EqPresets.java        # 5 种 EQ 风格
-├── WhiteNoise.java       # 雨/火/棕混音
-├── IcyMetadata.java      # 直播流元数据
-├── LyricsEngine.java     # 多源歌词聚合
-├── Lyrics.java           # 本地 LRC 解析
-├── L10n.java             # 中/英双语
-├── MusicWidget.java      # 桌面小组件
-├── CrashReporter.java    # JSON 崩溃上报 (脱敏)
-├── ImageCache.java       # 图片缓存
-├── BackupManager.java    # 备份/恢复
-├── SmartPlaylist.java    # 智能歌单
-├── SearchSuggest.java    # 搜索建议
-├── ReplayGainParser.java # 响度归一化
-├── MaterialColor.java    # 动态色
-├── VisualizerView.java   # 音频可视化
-└── Jamendo.java          # Openverse 来源
+├── MainActivity.java       # UI / 8标签 / 搜索 / 播放控制 / 设置
+├── PlayerService.java      # 播放引擎 (Gapless / RG / MediaSession / 均衡器)
+├── Audius.java             # 去中心化音乐
+├── Archive.java            # 公有领域/CC
+├── RadioBrowser.java       # 全球电台
+├── SomaFM.java             # 非营利电台
+├── Openverse.java          # CC 音频聚合
+├── Jamendo.java            # Openverse 来源
+├── EqPresets.java          # 5 种 EQ 风格
+├── WhiteNoise.java         # 雨/火/棕混音
+├── IcyMetadata.java        # 直播流元数据
+├── LyricsEngine.java       # 多源歌词聚合
+├── Lyrics.java             # 本地 LRC 解析
+├── L10n.java               # 中/英双语
+├── MusicWidget.java        # 桌面小组件 (原版)
+├── CrashReporter.java      # JSON 崩溃上报 (脱敏)
+├── ImageCache.java         # 图片缓存
+├── BackupManager.java      # 备份/恢复
+├── SmartPlaylist.java      # 智能歌单
+├── SearchSuggest.java      # 搜索建议
+├── ReplayGainParser.java   # 响度归一化
+├── MaterialColor.java      # 动态色
+├── VisualizerView.java     # 音频可视化
+├── DownloadManager.java    # 🆕 离线下载管理
+├── GraphicEqualizer.java   # 🆕 10段图形均衡器
+├── PodcastEngine.java      # 🆕 播客引擎
+├── LastFmScrobbler.java    # 🆕 Last.fm Scrobble
+├── MusicBrainz.java        # 🆕 元数据补全
+├── ThemeManager.java       # 🆕 自定义主题
+├── StatsEngine.java        # 🆕 统计图表
+├── SearchFilters.java      # 🆕 搜索筛选
+├── Widget2x.java           # 🆕 多尺寸小组件
+├── NotificationBig.java    # 🆕 BigPicture 通知
+├── AutoManifest.java       # 🆕 Android Auto 声明
+├── QuickTile.java          # 🆕 快捷设置磁贴
+└── Shortcuts.java          # 🆕 App Shortcuts
 ```
 
 ## 🎵 音乐源 (全部合法开放 · 0 商业曲库)
@@ -76,6 +81,10 @@ src/com/musicfusion/app/
 | **RadioBrowser** | 全球电台目录 | 社区维护, 公开 API |
 | **SomaFM** | 非营利独立电台 | 商业赞助非营利 |
 | **Openverse** | CC 音频聚合 | WordPress 基金会 |
+| **Jamendo** | CC 音乐 | Jamendo 许可 |
+| **Podcast (RSS)** | 播客 | 开放 RSS/OPML 标准 |
+| **Last.fm** | 元数据/统计 | 官方 API 免费 |
+| **MusicBrainz** | 元数据 | 开放音乐百科 |
 
 ## 🔒 安全与隐私
 
@@ -83,16 +92,17 @@ src/com/musicfusion/app/
 
 - 崩溃报告**指纹脱敏** (设备型号/序列号 SHA256 截断)
 - 无网络追踪/分析 SDK
-- 无广告/付费墙
+- 无广告/付费墙/登录墙
 - 所有数据仅存本机 `SharedPreferences` + 应用沙盒
 - 备份文件仅在用户主动导出时写入 `Downloads/MusicFusion/`
+- 下载仅限明确允许下载的源 (IA/Archive/Openverse CC0)
 
 ## 🔧 编译
 
 ```bash
 # 需要: aapt / dx / apksigner / android.jar (API 30)
 bash build.sh
-# 产物: musicfusion.apk (201KB)
+# 产物: musicfusion.apk (<250KB)
 ```
 
 ## 📦 安装
@@ -106,11 +116,11 @@ pm install -r musicfusion.apk
 
 | 字段 | 值 |
 |---|---|
-| versionCode | 15 |
-| versionName | 12.0.0 |
+| versionCode | 16 |
+| versionName | 13.0.0 |
 | minSdk | 24 |
 | targetSdk | 30 |
-| 大小 | 201KB |
+| 大小 | <250KB |
 | License | MIT |
 
 ## 📜 License

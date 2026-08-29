@@ -1,23 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.musicfusion.app"
-    android:versionCode="15"
-    android:versionName="12.0.0">
+    android:versionCode="16"
+    android:versionName="13.0.0">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.BIND_QUICK_SETTINGS_TILE"/>
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND"/>
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_USE_DATA_IN_BACKGROUND"/>
+    <uses-permission android:name="com.google.android.gms.permission.CAR_FUEL"/>
+    <uses-permission android:name="com.google.android.gms.permission.CAR_SPEED"/>
+    <uses-permission android:name="com.google.android.gms.permission.CAR_MILEAGE"/>
+
     <application
         android:label="MusicFusion"
         android:icon="@drawable/ic_launcher"
-        android:allowBackup="false">
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts"/>
         </activity>
-        <service android:name=".PlayerService" android:exported="false"/>
+        <service android:name=".PlayerService" android:exported="false"
+            android:foregroundServiceType="mediaPlayback"/>
+        <service android:name=".DownloadManager$DownloadService" android:exported="false"
+            android:foregroundServiceType="mediaPlayback"/>
+        <service android:name=".Widget2x" android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/widget_2x_info"/>
+        </service>
+        <service android:name=".QuickTile" android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
         <receiver android:name=".MusicWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
@@ -25,5 +58,8 @@
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/music_widget_info"/>
         </receiver>
+        <!-- Android Auto -->
+        <meta-data android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc"/>
     </application>
 </manifest>

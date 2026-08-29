@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nbig_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="#0d1117">
+
+    <ImageView
+        android:id="@+id/nbig_cover"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_launcher"
+        android:contentDescription="@string/notif_cover" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/nbig_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MusicFusion"
+            android:textSize="16sp"
+            android:textColor="#e6edf3"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/nbig_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="艺术家"
+            android:textSize="12sp"
+            android:textColor="#8b949e"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/nbig_lyric"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="歌词滚动..."
+            android:textSize="11sp"
+            android:textColor="#58a6ff"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <ProgressBar
+            android:id="@+id/nbig_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:max="1000"
+            android:progress="0"
+            android:progressTint="#1db954" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginStart="12dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageButton
+            android:id="@+id/nbig_prev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_prev"
+            android:contentDescription="@string/notif_prev" />
+
+        <ImageButton
+            android:id="@+id/nbig_play"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_pause"
+            android:contentDescription="@string/notif_pause" />
+
+        <ImageButton
+            android:id="@+id/nbig_next"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_next"
+            android:contentDescription="@string/notif_next" />
+
+        <ImageButton
+            android:id="@+id/nbig_stop"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_stop"
+            android:contentDescription="@string/notif_stop" />
+    </LinearLayout>
+</LinearLayout>

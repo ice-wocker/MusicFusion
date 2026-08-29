@@ -22,6 +22,7 @@ import android.os.Handler;
 import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -131,7 +132,7 @@ public class MainActivity extends Activity {
     String curTrackId = null, curUserId = null;
     Map<String, String> srcErrors = new LinkedHashMap<String, String>();
 
-    static String[] TABS = {"首页", "搜索", "电台", "目录", "我的"};
+    static String[] TABS = {"首页", "搜索", "电台", "目录", "播客", "下载", "统计", "我的"};
     static MainActivity inst;
 
     @Override protected void onCreate(Bundle b) {
@@ -746,10 +747,10 @@ public class MainActivity extends Activity {
         }});
     }
 
-    // ══════ v12: 设置面板 12+ 项 ══════
+    // ══════ v13: 设置面板 20+ 项 ══════
     void settingsDialog() {
         new AlertDialog.Builder(this)
-            .setTitle("设置 v12")
+            .setTitle("设置 v13 Cosmic")
             .setItems(new String[]{
                 L10n.s("sleep"), L10n.s("speed"), L10n.s("equalizer"),
                 L10n.s("preset"), L10n.s("noise"),
@@ -757,7 +758,13 @@ public class MainActivity extends Activity {
                 L10n.s("refresh_cat"),
                 L10n.s("clear_hist"), L10n.s("lang"),
                 "🎨 可视化", "📊 ReplayGain", "💾 备份/恢复",
-                "🎵 智能歌单", "🛠 崩溃报告", L10n.s("about")
+                "🎵 智能歌单", "🛠 崩溃报告",
+                // v13 新增
+                "📈 统计图表", "🎛️ 10段均衡器", "🎧 播客管理",
+                "⬇️ 下载设置", "🎨 主题编辑器",
+                "🌐 Last.fm Scrobble", "🏷️ MusicBrainz 补全",
+                "🔍 搜索筛选", "📱 小组件/快捷方式",
+                L10n.s("about")
             }, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
                     try {
@@ -792,6 +799,16 @@ public class MainActivity extends Activity {
                         else if (w == 13) backupDialog();
                         else if (w == 14) smartPlaylistDialog();
                         else if (w == 15) crashReportDialog();
+                        // v13 新增
+                        else if (w == 16) showStatsCharts();
+                        else if (w == 17) showGraphicEqDialog();
+                        else if (w == 18) podcastSettingsDialog();
+                        else if (w == 19) downloadSettingsDialog();
+                        else if (w == 20) themeEditorDialog();
+                        else if (w == 21) lastFmDialog();
+                        else if (w == 22) musicBrainzDialog();
+                        else if (w == 23) searchFiltersDialog();
+                        else if (w == 24) widgetShortcutsDialog();
                         else aboutDialog();
                     } catch (Throwable t) { toast("操作失败: " + t.getMessage()); }
                 }
@@ -1133,12 +1150,15 @@ public class MainActivity extends Activity {
                 }
             }
             String q = searchBox.getText().toString().trim();
-            if (q.length() >= 2 && idx != 3 && idx != 4) { doSearch(q); return; }
+            if (q.length() >= 2 && idx != 3 && idx != 4 && idx != 5 && idx != 6) { doSearch(q); return; }
             if (idx == 0) loadTrending();
             else if (idx == 1) showSearchHistory();
             else if (idx == 2) loadRadio("");
             else if (idx == 3) loadCatalog("");
-            else if (idx == 4) loadMine();
+            else if (idx == 4) loadPodcasts();
+            else if (idx == 5) loadDownloads();
+            else if (idx == 6) loadStats();
+            else if (idx == 7) loadMine();
         } catch (Throwable t) { toast("标签切换失败: " + t.getMessage()); }
     }
 
@@ -1380,7 +1400,7 @@ public class MainActivity extends Activity {
     }
 
     // ══════ 我的 ══════
-    static final String PREF_FAV = "fav", PREF_REC = "recent";
+    static final String PREF_FAV = "fav", PREF_REC = "recent", PREF_PL = "pl";
 
     void loadMine() {
         bg(new Runnable() { public void run() {
@@ -1392,7 +1412,11 @@ public class MainActivity extends Activity {
                 out.add(new Object[]{"— 我的收藏 —", "", "", "头"});
                 for (String e : loadEntries(PREF_FAV))
                     out.add(new Object[]{titleOf(e), subOf(e), urlOf(e), "藏"});
-                loadPlaylists(out);
+                // 加载歌单
+                ArrayList<String> playlists = loadEntries(PREF_PL);
+                for (String pl : playlists) {
+                    out.add(new Object[]{"📂 " + pl, "歌单 · 长按编辑", "\u0001PL:" + pl, "单"});
+                }
                 out.add(new Object[]{"— 播放排行榜 Top10 —", "按本地播放次数", "", "头"});
                 for (Object[] tp : topPlayed())
                     out.add(new Object[]{tp[0] + "  (" + tp[1] + "次)",
@@ -1459,6 +1483,108 @@ public class MainActivity extends Activity {
         return out;
     }
 
+    // ══════ 播客 ══════
+    void loadPodcasts() {
+        bg(new Runnable() { public void run() {
+            final ArrayList<Object[]> out = new ArrayList<Object[]>();
+            try {
+                // 加载已订阅播客
+                final Context ctx = MainActivity.this;
+                PodcastEngine.Feed[] feeds = PodcastEngine.getSubscriptions(ctx);
+                if (feeds.length == 0) {
+                    out.add(new Object[]{"暂无订阅", "点击右上角 + 添加播客", "", "头"});
+                } else {
+                    out.add(new Object[]{"— 我的订阅 —", "", "", "头"});
+                    for (PodcastEngine.Feed feed : feeds) {
+                        out.add(new Object[]{feed.title, feed.author + " · " + feed.link, feed.url, "POD"});
+                    }
+                }
+                // 推荐/热门播客
+                out.add(new Object[]{"— 发现播客 —", "搜索/导入 OPML", "", "头"});
+                out.add(new Object[]{"➕ 添加播客 (RSS/OPML)", "输入 Feed URL 或导入 OPML 文件", "ADD_PODCAST", "POD"});
+                out.add(new Object[]{"🔍 搜索播客", "在 iTunes/Listen Notes 搜索", "SEARCH_PODCAST", "POD"});
+                out.add(new Object[]{"📥 导入 OPML", "从文件导入订阅列表", "IMPORT_OPML", "POD"});
+            } catch (Exception ignored) {}
+            ui(new Runnable() { public void run() {
+                rows.clear(); rows.addAll(out);
+                adapter.notifyDataSetChanged();
+                status("播客");
+            }});
+        }});
+    }
+
+    // ══════ 下载 ══════
+    void loadDownloads() {
+        DownloadManager.restore(this);
+        DownloadManager.registerCallback(new DownloadManager.Callback() {
+            public void onProgress(DownloadManager.DownloadTask task) { uiRefreshDownloads(); }
+            public void onComplete(DownloadManager.DownloadTask task) { uiRefreshDownloads(); }
+            public void onError(DownloadManager.DownloadTask task, String error) { uiRefreshDownloads(); }
+            public void onQueueChanged() { uiRefreshDownloads(); }
+        });
+        uiRefreshDownloads();
+    }
+
+    void uiRefreshDownloads() {
+        ui(new Runnable() { public void run() {
+            try {
+                java.util.List<DownloadManager.DownloadTask> tasks = DownloadManager.getAll();
+                rows.clear();
+                if (tasks.isEmpty()) {
+                    rows.add(new Object[]{"暂无下载任务", "搜索结果长按 → 下载", "", "头"});
+                } else {
+                    rows.add(new Object[]{"— 下载队列 (" + tasks.size() + ") —", "进行中: " + DownloadManager.getActiveCount(), "", "头"});
+                    for (DownloadManager.DownloadTask task : tasks) {
+                        String statusStr = task.status == 1 ? "⬇ " :
+                            task.status == 2 ? "⏸ " :
+                            task.status == 3 ? "✅ " : "❌ ";
+                        String prog = task.totalBytes > 0 ?
+                            String.format("%.1f%%", task.downloadedBytes * 100f / task.totalBytes) : "—";
+                        String sub = statusStr + task.title + " · " + prog;
+                        if (task.status == 4) sub += " · " + task.errorMsg;
+                        rows.add(new Object[]{task.artist, sub, task.id, "DL"});
+                    }
+                }
+                adapter.notifyDataSetChanged();
+                status("下载管理");
+            } catch (Throwable t) { toast("刷新失败: " + t.getMessage()); }
+        }});
+    }
+
+    // ══════ 统计 ══════
+    void loadStats() {
+        bg(new Runnable() { public void run() {
+            final ArrayList<Object[]> out = new ArrayList<Object[]>();
+            try {
+                final StatsEngine.StatsReport report = StatsEngine.generateReport(MainActivity.this);
+                out.add(new Object[]{"📊 听歌总览", "总播放: " + report.totalPlays + " · 总时长: " + fmt(report.totalMs) + " · 歌曲数: " + report.uniqueTracks, "", "头"});
+                out.add(new Object[]{"— 周听歌趋势 —", "最近 7 天", "", "头"});
+                for (StatsEngine.DayStat ds : report.weekStats) {
+                    out.add(new Object[]{ds.date, ds.plays + " 首 · " + fmt(ds.ms), "", "统"});
+                }
+                out.add(new Object[]{"— 流派分布 —", "Top 10", "", "头"});
+                for (Map.Entry<String, Integer> e : report.genreTop.entrySet()) {
+                    out.add(new Object[]{e.getKey(), e.getValue() + " 次", "", "统"});
+                }
+                out.add(new Object[]{"— 时段分布 —", "24 小时热力", "", "头"});
+                for (int h = 0; h < 24; h++) {
+                    int c = report.hourly[h];
+                    if (c > 0) out.add(new Object[]{String.format("%02d:00", h), c + " 次", "", "统"});
+                }
+                out.add(new Object[]{"— 艺术家 Top 10 —", "", "", "头"});
+                for (Map.Entry<String, Integer> e : report.artistTop.entrySet()) {
+                    out.add(new Object[]{e.getKey(), e.getValue() + " 次", "", "统"});
+                }
+                out.add(new Object[]{"📤 导出统计报告", "JSON 文件分享/备份", "EXPORT_STATS", "统"});
+            } catch (Exception ignored) {}
+            ui(new Runnable() { public void run() {
+                rows.clear(); rows.addAll(out);
+                adapter.notifyDataSetChanged();
+                status("统计分析");
+            }});
+        }});
+    }
+
     ArrayList<String> loadEntries(String key) {
         ArrayList<String> l = new ArrayList<String>();
         String raw = getSharedPreferences("mf", MODE_PRIVATE).getString(key, "");
@@ -1503,7 +1629,7 @@ public class MainActivity extends Activity {
                 }, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         try {
-                            if (w == 1) { playlistPickDialog(title, sub, url); return; }
+                            if (w == 1) { addToPlaylistDialog(title, sub, url); return; }
                             if (w >= 2) w--;
                             if (w == 0) {
                                 ArrayList<String> l = loadEntries(PREF_FAV);
@@ -1744,6 +1870,10 @@ public class MainActivity extends Activity {
         int s = ms / 1000;
         return s / 60 + ":" + String.format(Locale.US, "%02d", s % 60);
     }
+    static String fmt(long ms) {
+        long s = ms / 1000;
+        return s / 60 + ":" + String.format(Locale.US, "%02d", s % 60);
+    }
 
     // ══════ 适配器 ══════
     class RowAdapter extends BaseAdapter {
@@ -1813,65 +1943,690 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    // ══════ v12: 歌单系统 (精简) ══════
-    void playlistPickDialog(final String title, final String sub, final String url) {
-        ArrayList<String> names = playlistNames();
-        final ArrayList<String> opts = new ArrayList<String>(names);
-        opts.add("+ 新建歌单");
+    // ══════ v13: 新增对话框 ══════
+
+    /** 统计图表对话框 */
+    void showStatsCharts() {
         new AlertDialog.Builder(this)
-            .setTitle("加入歌单")
-            .setItems(opts.toArray(new String[0]), new DialogInterface.OnClickListener() {
+            .setTitle("📈 统计图表")
+            .setItems(new String[]{
+                "📊 本周趋势图",
+                "📊 本月趋势图",
+                "📊 本年趋势图",
+                "🥧 流派饼图",
+                "🕐 时段热力图",
+                "👤 艺术家排行",
+                "📤 导出完整报告 (JSON)"
+            }, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) {
                     try {
-                        String e = title + "\u0001" + sub + "\u0001" + url;
-                        if (w == names.size()) {
-                            final EditText et = new EditText(MainActivity.this);
-                            et.setHint("歌单名称");
-                            new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("新建歌单")
-                                .setView(et)
-                                .setPositiveButton("创建", new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dd, int ww) {
-                                        try {
-                                            String name = et.getText().toString().trim();
-                                            if (name.isEmpty()) return;
-                                            addToPlaylist(name, e);
-                                            toast("已创建并加入「" + name + "」");
-                                        } catch (Throwable t) {}
-                                    }
-                                }).setNegativeButton("取消", null).show();
-                        } else {
-                            addToPlaylist(names.get(w), e);
-                            toast("已加入「" + names.get(w) + "」");
+                        if (w <= 2) {
+                            String period = w == 0 ? "week" : w == 1 ? "month" : "year";
+                            StatsEngine.StatsReport report = StatsEngine.generateReport(MainActivity.this);
+                            // 显示 ASCII 图表或跳转到可视化
+                            showAsciiChart(report, period);
+                        } else if (w == 3) {
+                            StatsEngine.StatsReport report = StatsEngine.generateReport(MainActivity.this);
+                            showGenrePie(report);
+                        } else if (w == 4) {
+                            StatsEngine.StatsReport report = StatsEngine.generateReport(MainActivity.this);
+                            showHourlyHeatmap(report);
+                        } else if (w == 5) {
+                            StatsEngine.StatsReport report = StatsEngine.generateReport(MainActivity.this);
+                            showArtistRanking(report);
+                        } else if (w == 6) {
+                            exportFullStats();
                         }
-                    } catch (Throwable t) {}
+                    } catch (Throwable t) { toast("失败: " + t.getMessage()); }
                 }
             }).show();
     }
-    ArrayList<String> playlistNames() {
-        ArrayList<String> l = new ArrayList<String>();
-        String raw = getSharedPreferences("mf", MODE_PRIVATE).getString("playlists", "");
-        if (!raw.isEmpty()) for (String n : raw.split("\n")) if (!n.isEmpty()) l.add(n);
-        return l;
+
+    private void showAsciiChart(StatsEngine.StatsReport report, String period) {
+        // 简化: 显示文本统计
+        StringBuilder sb = new StringBuilder();
+        sb.append(period.equals("week") ? "周" : period.equals("month") ? "月" : "年").append("趋势:\n");
+        for (StatsEngine.DayStat ds : period.equals("week") ? report.weekStats :
+            period.equals("month") ? report.monthStats : report.yearStats) {
+            int barLen = Math.min(30, ds.plays);
+            String bar = new String(new char[barLen]).replace("\0", "█");
+            sb.append(ds.date).append(" ").append(bar).append(" ").append(ds.plays).append("\n");
+        }
+        new AlertDialog.Builder(this).setTitle("趋势图").setMessage(sb.toString()).setPositiveButton("OK", null).show();
     }
-    void addToPlaylist(String name, String entry) {
+
+    private void showGenrePie(StatsEngine.StatsReport report) {
+        StringBuilder sb = new StringBuilder("流派分布:\n");
+        int total = 0; for (int v : report.genreTop.values()) total += v;
+        for (Map.Entry<String, Integer> e : report.genreTop.entrySet()) {
+            int pct = total > 0 ? e.getValue() * 100 / total : 0;
+            int bar = pct / 3;
+            sb.append(e.getKey()).append(": ").append(new String(new char[bar]).replace("\0", "█"))
+              .append(" ").append(pct).append("%\n");
+        }
+        new AlertDialog.Builder(this).setTitle("流派分布").setMessage(sb.toString()).setPositiveButton("OK", null).show();
+    }
+
+    private void showHourlyHeatmap(StatsEngine.StatsReport report) {
+        StringBuilder sb = new StringBuilder("24h 热力:\n");
+        int max = 0; for (int v : report.hourly) if (v > max) max = v;
+        for (int h = 0; h < 24; h++) {
+            int bar = max > 0 ? report.hourly[h] * 20 / max : 0;
+            sb.append(String.format("%02d:00 ", h)).append(new String(new char[bar]).replace("\0", "█"))
+              .append(" ").append(report.hourly[h]).append("\n");
+        }
+        new AlertDialog.Builder(this).setTitle("时段热力图").setMessage(sb.toString()).setPositiveButton("OK", null).show();
+    }
+
+    private void showArtistRanking(StatsEngine.StatsReport report) {
+        StringBuilder sb = new StringBuilder("艺术家 Top 20:\n");
+        int i = 0;
+        for (Map.Entry<String, Integer> e : report.artistTop.entrySet()) {
+            if (i++ >= 20) break;
+            sb.append(i).append(". ").append(e.getKey()).append(" - ").append(e.getValue()).append(" 次\n");
+        }
+        new AlertDialog.Builder(this).setTitle("艺术家排行").setMessage(sb.toString()).setPositiveButton("OK", null).show();
+    }
+
+    private void exportFullStats() {
+        bg(new Runnable() { public void run() {
+            try {
+                String json = StatsEngine.exportReport(MainActivity.this);
+                File file = new File(getFilesDir(), "musicfusion_stats_" + System.currentTimeMillis() + ".json");
+                FileOutputStream fos = new FileOutputStream(file);
+                fos.write(json.getBytes("UTF-8")); fos.close();
+                final File f = file;
+                ui(new Runnable() { public void run() {
+                    Intent share = new Intent(Intent.ACTION_SEND);
+                    share.setType("application/json");
+                    share.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f));
+                    startActivity(Intent.createChooser(share, "分享统计报告"));
+                }});
+            } catch (Exception e) {
+                ui(new Runnable() { public void run() { toast("导出失败: " + e.getMessage()); }});
+            }
+        }});
+    }
+
+    /** 10段图形均衡器对话框 */
+    void showGraphicEqDialog() {
+        final GraphicEqualizer eqView = new GraphicEqualizer(this);
+        eqView.setOnGainChangeListener(new GraphicEqualizer.OnGainChangeListener() {
+            public void onGainChange(int band, float gain) {}
+            public void onGainChangeFinish(int[] bands, float[] gains) {
+                // 保存用户预设
+            }
+        });
+        // 加载当前预设
+        String currentPreset = getSharedPreferences("mf", MODE_PRIVATE).getString("eq_preset", "flat");
+        eqView.loadPreset(this, currentPreset);
+
+        new AlertDialog.Builder(this)
+            .setTitle("🎛️ 10段图形均衡器")
+            .setView(eqView)
+            .setPositiveButton("保存为预设", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    final EditText et = new EditText(MainActivity.this);
+                    et.setHint("预设名称");
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("保存预设")
+                        .setView(et)
+                        .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dd, int ww) {
+                                String name = et.getText().toString().trim();
+                                if (!name.isEmpty()) {
+                                    eqView.savePreset(MainActivity.this, name);
+                                    getSharedPreferences("mf", MODE_PRIVATE).edit().putString("eq_preset", name).apply();
+                                    toast("已保存: " + name);
+                                }
+                            }
+                        }).setNegativeButton("取消", null).show();
+                }
+            })
+            .setNeutralButton("预设列表", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    String[] presets = GraphicEqualizer.listPresets(MainActivity.this);
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("选择预设")
+                        .setItems(presets, new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dd, int ww) {
+                                eqView.loadPreset(MainActivity.this, presets[ww]);
+                                getSharedPreferences("mf", MODE_PRIVATE).edit().putString("eq_preset", presets[ww]).apply();
+                                toast("已应用: " + presets[ww]);
+                            }
+                        }).show();
+                }
+            })
+            .setNegativeButton("关闭", null).show();
+    }
+
+    /** 播客设置 */
+    void podcastSettingsDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("🎧 播客管理")
+            .setItems(new String[]{
+                "➕ 添加 RSS Feed",
+                "📥 导入 OPML",
+                "📤 导出 OPML",
+                "🔄 刷新所有订阅",
+                "⚙️ 自动更新间隔",
+                "🗑 清除已播放记录",
+                "📱 下载设置 (仅WiFi/画质)"
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    try {
+                        if (w == 0) addPodcastFeedDialog();
+                        else if (w == 1) importOpmlDialog();
+                        else if (w == 2) exportOpmlDialog();
+                        else if (w == 3) { PodcastEngine.refreshAll(MainActivity.this, new Runnable() { public void run() { toast("刷新完成"); }}); }
+                        else if (w == 4) autoUpdateIntervalDialog();
+                        else if (w == 5) { PodcastEngine.clearPlayed(MainActivity.this); toast("已清除"); }
+                        else if (w == 6) downloadSettingsDialog();
+                    } catch (Throwable t) { toast("失败: " + t.getMessage()); }
+                }
+            }).show();
+    }
+
+    private void addPodcastFeedDialog() {
+        final EditText et = new EditText(this);
+        et.setHint("RSS Feed URL (如 https://example.com/feed.xml)");
+        et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        new AlertDialog.Builder(this)
+            .setTitle("添加播客 Feed")
+            .setView(et)
+            .setPositiveButton("添加", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    String url = et.getText().toString().trim();
+                    if (!url.isEmpty()) {
+                        PodcastEngine.addFeed(MainActivity.this, url, new PodcastEngine.ParseCallback() {
+                            public void onFeedParsed(final PodcastEngine.Feed feed, final java.util.List<PodcastEngine.Episode> episodes) {
+                                ui(new Runnable() { public void run() {
+                                    if (feed != null) toast("添加成功: " + feed.title);
+                                    else toast("解析失败: 无 Feed");
+                                }});
+                            }
+                            public void onError(final String err) {
+                                ui(new Runnable() { public void run() { toast("解析失败: " + err); }});
+                            }
+                        });
+                        toast("已添加, 正在解析...");
+                        setTab(4); // 切到播客标签
+                    }
+                }
+            }).setNegativeButton("取消", null).show();
+    }
+
+    private void importOpmlDialog() {
+        // 简化: 提示用户从文件选择
+        toast("请使用文件管理器选择 OPML 文件, 然后分享给 MusicFusion");
+    }
+
+    private void exportOpmlDialog() {
+        bg(new Runnable() { public void run() {
+            try {
+                String opml = PodcastEngine.exportOpml(MainActivity.this);
+                File file = new File(getFilesDir(), "podcasts.opml");
+                FileOutputStream fos = new FileOutputStream(file);
+                fos.write(opml.getBytes("UTF-8")); fos.close();
+                final File f = file;
+                ui(new Runnable() { public void run() {
+                    Intent share = new Intent(Intent.ACTION_SEND);
+                    share.setType("text/xml");
+                    share.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f));
+                    startActivity(Intent.createChooser(share, "分享 OPML"));
+                }});
+            } catch (Exception e) {
+                ui(new Runnable() { public void run() { toast("导出失败: " + e.getMessage()); }});
+            }
+        }});
+    }
+
+    private void autoUpdateIntervalDialog() {
+        final String[] opts = {"关闭", "15分钟", "30分钟", "1小时", "6小时", "12小时", "每日"};
+        final int[] mins = {0, 15, 30, 60, 360, 720, 1440};
         SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
-        ArrayList<String> names = playlistNames();
-        if (!names.contains(name)) { names.add(name);
-            StringBuilder nb = new StringBuilder();
-            for (String n : names) nb.append(n).append("\n");
-            sp.edit().putString("playlists", nb.toString()).apply();
-        }
-        String key = "pl_" + name.hashCode();
-        ArrayList<String> items = loadEntries(key);
-        if (!items.contains(entry)) { items.add(entry); saveEntries(key, items); }
+        int current = sp.getInt("podcast_auto_update", 60);
+        int checked = 3;
+        for (int i = 0; i < mins.length; i++) if (mins[i] == current) { checked = i; break; }
+        new AlertDialog.Builder(this)
+            .setTitle("自动更新间隔")
+            .setSingleChoiceItems(opts, checked, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    getSharedPreferences("mf", MODE_PRIVATE).edit().putInt("podcast_auto_update", mins[w]).apply();
+                    toast("已设置: " + opts[w]);
+                    d.dismiss();
+                }
+            }).show();
     }
-    void loadPlaylists(final ArrayList<Object[]> out) {
-        for (String name : playlistNames()) {
-            ArrayList<String> items = loadEntries("pl_" + name.hashCode());
-            if (!items.isEmpty())
-                out.add(new Object[]{"[歌单] " + name + " (" + items.size() + "首)",
-                    items.get(0).split("\u0001")[0], "\u0001PL:" + name, "单"});
+
+    /** 下载设置 */
+    void downloadSettingsDialog() {
+        SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        final boolean[] onlyWifi = {sp.getBoolean("download_wifi_only", true)};
+        final String[] quality = {"最高可用", "320kbps", "256kbps", "192kbps", "128kbps"};
+        int qi = sp.getInt("download_quality", 0);
+        new AlertDialog.Builder(this)
+            .setTitle("⬇️ 下载设置")
+            .setMultiChoiceItems(new String[]{"仅 WiFi 下载"}, onlyWifi, new DialogInterface.OnMultiChoiceClickListener() {
+                public void onClick(DialogInterface d, int w, boolean c) { onlyWifi[0] = c; }
+            })
+            .setSingleChoiceItems(quality, qi, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    getSharedPreferences("mf", MODE_PRIVATE).edit().putInt("download_quality", w).apply();
+                    d.dismiss();
+                }
+            })
+            .setPositiveButton("完成", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    getSharedPreferences("mf", MODE_PRIVATE).edit().putBoolean("download_wifi_only", onlyWifi[0]).apply();
+                }
+            }).show();
+    }
+
+    /** 主题编辑器 */
+    void themeEditorDialog() {
+        final String[] builtins = {"默认 (Nebula)", "AMOLED 纯黑", "高对比", "护眼暖色", "浅色"};
+        final String[] builtinKeys = {ThemeManager.THEME_DEFAULT, ThemeManager.THEME_AMOLED,
+            ThemeManager.THEME_HIGH_CONTRAST, ThemeManager.THEME_EYE_CARE, ThemeManager.THEME_LIGHT};
+        final String current = ThemeManager.getCurrentTheme(this);
+        int checked = 0;
+        for (int i = 0; i < builtinKeys.length; i++) if (builtinKeys[i].equals(current)) { checked = i; break; }
+        final int checkedFinal = checked;
+
+        new AlertDialog.Builder(this)
+            .setTitle("🎨 主题编辑器")
+            .setItems(new String[]{
+                "🎨 选择内置主题",
+                "✏️ 自定义色板",
+                "💾 导出主题",
+                "📥 导入主题",
+                "🗑 删除自定义主题"
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == 0) {
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("内置主题")
+                            .setSingleChoiceItems(builtins, checkedFinal, new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dd, int ww) {
+                                    ThemeManager.setTheme(MainActivity.this, builtinKeys[ww]);
+                                    if (ThemeManager.THEME_CUSTOM.equals(builtinKeys[ww])) {
+                                        // 用户自定义主题
+                                    }
+                                    toast("已切换: " + builtins[ww]);
+                                    recreate();
+                                    dd.dismiss();
+                                }
+                            }).show();
+                    } else if (w == 1) customColorDialog();
+                    else if (w == 2) {
+                        String json = ThemeManager.exportTheme(MainActivity.this, current);
+                        if (json != null) {
+                            File f = new File(getFilesDir(), "theme_" + current + ".json");
+                            try {
+                                FileOutputStream fos = new FileOutputStream(f);
+                                fos.write(json.getBytes("UTF-8")); fos.close();
+                                Intent share = new Intent(Intent.ACTION_SEND);
+                                share.setType("application/json");
+                                share.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f));
+                                startActivity(Intent.createChooser(share, "分享主题"));
+                            } catch (Exception e) { toast("导出失败: " + e.getMessage()); }
+                        }
+                    } else if (w == 3) {
+                        toast("请用文件管理器选择 JSON 并分享给 MusicFusion");
+                    } else if (w == 4) {
+                        List<String> customs = ThemeManager.listThemes(MainActivity.this);
+                        customs.removeAll(Arrays.asList(builtinKeys));
+                        if (customs.isEmpty()) { toast("无自定义主题"); return; }
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("删除自定义主题")
+                            .setItems(customs.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dd, int ww) {
+                                    ThemeManager.deleteCustomTheme(MainActivity.this, customs.get(ww));
+                                    toast("已删除: " + customs.get(ww));
+                                }
+                            }).show();
+                    }
+                }
+            }).show();
+    }
+
+    private void customColorDialog() {
+        final String[] colorKeys = {ThemeManager.C_BG, ThemeManager.C_CARD, ThemeManager.C_LINE,
+            ThemeManager.C_TXT, ThemeManager.C_DIM, ThemeManager.C_PRI, ThemeManager.C_SEC,
+            ThemeManager.C_GRN, ThemeManager.C_ERR, ThemeManager.C_WRN, ThemeManager.C_INF};
+        final String[] colorLabels = {"背景", "卡片", "分割线", "主文字", "次要文字",
+            "主强调", "次强调", "成功", "错误", "警告", "信息"};
+        final Map<String, Integer> colors = new HashMap<>(ThemeManager.getThemeColors(this, ThemeManager.THEME_CUSTOM));
+
+        new AlertDialog.Builder(this)
+            .setTitle("自定义色板")
+            .setItems(colorLabels, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    pickColorForKey(colorKeys[w], colorLabels[w], colors);
+                }
+            })
+            .setPositiveButton("保存并应用", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    String name = "custom_" + System.currentTimeMillis();
+                    if (ThemeManager.saveCustomTheme(MainActivity.this, name, colors)) {
+                        ThemeManager.setActiveCustomTheme(MainActivity.this, name);
+                        toast("已保存并应用: " + name);
+                        recreate();
+                    } else {
+                        toast("保存失败");
+                    }
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    private void pickColorForKey(final String key, final String label, final Map<String, Integer> colors) {
+        final int[] pickerColor = {colors.get(key)};
+        // 简化: 用预设色板
+        final String[] presets = {"#0B0E14", "#000000", "#161C28", "#1A1610", "#F6F8FA",
+            "#1DB954", "#58A6FF", "#E8A838", "#F85149", "#D29922", "#0969DA", "#FFFFFF"};
+        new AlertDialog.Builder(this)
+            .setTitle(label + " 颜色")
+            .setItems(presets, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    colors.put(key, Color.parseColor(presets[w]));
+                    toast(label + " → " + presets[w]);
+                }
+            }).show();
+    }
+
+    /** Last.fm Scrobble 设置 */
+    void lastFmDialog() {
+        final SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+        final boolean enabled = sp.getBoolean("lastfm_enabled", false);
+        final String sessionKey = sp.getString("lastfm_session", "");
+
+        if (!enabled || TextUtils.isEmpty(sessionKey)) {
+            new AlertDialog.Builder(this)
+                .setTitle("🌐 Last.fm Scrobble")
+                .setMessage("启用后自动上报播放记录到 Last.fm\n\n无需 API Key, 使用官方授权流程")
+                .setPositiveButton("授权并启用", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        LastFmScrobbler.getAuthUrl(new LastFmScrobbler.AuthCallback() {
+                            public void onAuthUrl(String url) {
+                                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                                startActivity(i);
+                            }
+                            public void onAuthorized(String user) {
+                                toast("授权完成: " + user);
+                            }
+                            public void onError(String err) { toast("失败: " + err); }
+                        });
+                    }
+                })
+                .setNegativeButton("取消", null).show();
+        } else {
+            new AlertDialog.Builder(this)
+                .setTitle("🌐 Last.fm Scrobble (已启用)")
+                .setItems(new String[]{"禁用 Scrobble", "重新授权", "查看会话信息"}, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        if (w == 0) {
+                            sp.edit().putBoolean("lastfm_enabled", false).apply();
+                            LastFmScrobbler.init(MainActivity.this);
+                            toast("已禁用 Scrobble");
+                        } else if (w == 1) {
+                            LastFmScrobbler.getAuthUrl(new LastFmScrobbler.AuthCallback() {
+                                public void onAuthUrl(String url) {
+                                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                                    startActivity(i);
+                                }
+                                public void onAuthorized(String user) {
+                                    toast("授权完成: " + user);
+                                }
+                                public void onError(String err) { toast("失败: " + err); }
+                            });
+                        } else if (w == 2) {
+                            new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("会话信息")
+                                .setMessage("Session Key: " + sessionKey.substring(0, 8) + "...")
+                                .setPositiveButton("OK", null).show();
+                        }
+                    }
+                }).show();
         }
+    }
+
+    /** MusicBrainz 元数据补全 */
+    void musicBrainzDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("🏷️ MusicBrainz 元数据补全")
+            .setItems(new String[]{
+                "🔍 当前播放曲目补全",
+                "📁 批量补全本地库",
+                "⚙️ 设置: 自动补全阈值",
+                "📊 查看补全统计"
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == 0) {
+                        // 获取当前播放信息
+                        SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+                        String title = sp.getString("widget_title", "");
+                        String artist = sp.getString("widget_artist", "");
+                        if (TextUtils.isEmpty(title) || TextUtils.isEmpty(artist)) {
+                            toast("无正在播放的曲目");
+                            return;
+                        }
+                        MusicBrainz.completeMetadata(MainActivity.this, title, artist, "",
+                            new MusicBrainz.LookupCallback() {
+                                public void onResult(final MusicBrainz.RecordingInfo track) {
+                                    ui(new Runnable() { public void run() {
+                                        String msg = "标题: " + track.title + "\n艺术家: " + track.artist +
+                                            "\n专辑: " + track.album + "\n年份: " + track.year +
+                                            "\n流派: " + (TextUtils.isEmpty(track.genre) ? "无" : track.genre) +
+                                            "\nMBID: " + track.mbid;
+                                        new AlertDialog.Builder(MainActivity.this)
+                                            .setTitle("MusicBrainz 补全结果")
+                                            .setMessage(msg)
+                                            .setPositiveButton("OK", null).show();
+                                    }});
+                                }
+                                public void onError(final String err) {
+                                    ui(new Runnable() { public void run() {
+                                        toast("补全失败: " + err);
+                                    }});
+                                }
+                            });
+                    } else if (w == 1) {
+                        toast("批量补全功能开发中...");
+                    } else if (w == 2) {
+                        final String[] thresholds = {"高 (0.9)", "中 (0.7)", "低 (0.5)"};
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("自动补全置信度阈值")
+                            .setSingleChoiceItems(thresholds, 1, new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dd, int ww) {
+                                    getSharedPreferences("mf", MODE_PRIVATE).edit()
+                                        .putFloat("mb_threshold", ww == 0 ? 0.9f : ww == 1 ? 0.7f : 0.5f).apply();
+                                    toast("已设置: " + thresholds[ww]);
+                                    dd.dismiss();
+                                }
+                            }).show();
+                    } else if (w == 3) {
+                        toast("统计功能开发中...");
+                    }
+                }
+            }).show();
+    }
+
+    /** 搜索筛选 */
+    void searchFiltersDialog() {
+        final SearchFilters.FilterState state = SearchFilters.getCurrentFilters(this);
+        final String[] sourceLabels = {"全部", "Audius", "Internet Archive", "RadioBrowser", "SomaFM", "Openverse", "Jamendo"};
+        final String[] qualityLabels = {"全部", "320kbps+", "256kbps+", "192kbps+", "128kbps+", "任意"};
+        final String[] genreLabels = {"全部", "Pop", "Rock", "Electronic", "Hip Hop", "Classical", "Jazz", "Folk", "Country", "Ambient"};
+        final String[] yearLabels = {"全部", "2020s", "2010s", "2000s", "1990s", "1980s", "更早"};
+
+        new AlertDialog.Builder(this)
+            .setTitle("🔍 搜索筛选")
+            .setMultiChoiceItems(sourceLabels, state.sources, new DialogInterface.OnMultiChoiceClickListener() {
+                public void onClick(DialogInterface d, int w, boolean c) { state.sources[w] = c; }
+            })
+            .setPositiveButton("应用", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    SearchFilters.save(MainActivity.this, state);
+                    toast("筛选已保存");
+                }
+            })
+            .setNeutralButton("重置", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    SearchFilters.resetFilters(MainActivity.this);
+                    toast("已重置");
+                }
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    /** 小组件/快捷方式 */
+    void widgetShortcutsDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("📱 小组件与快捷方式")
+            .setItems(new String[]{
+                "📋 查看已添加小组件",
+                "⚙️ 小组件设置 (尺寸/显示内容)",
+                "⚡ 快捷设置磁贴 (下拉通知栏编辑)",
+                "📌 App Shortcuts (长按图标)",
+                "🔄 刷新所有小组件"
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == 0) toast("请在桌面长按 → 小组件 → MusicFusion");
+                    else if (w == 1) widgetConfigDialog();
+                    else if (w == 2) toast("下拉通知栏 → 编辑 → 找到 MusicFusion 添加");
+                    else if (w == 3) toast("长按应用图标查看快捷方式");
+                    else if (w == 4) {
+                        Widget2x.updateFromService(MainActivity.this,
+                            getSharedPreferences("mf", MODE_PRIVATE).getString("widget_title", ""),
+                            getSharedPreferences("mf", MODE_PRIVATE).getString("widget_artist", ""),
+                            getSharedPreferences("mf", MODE_PRIVATE).getInt("widget_progress", 0),
+                            getSharedPreferences("mf", MODE_PRIVATE).getInt("widget_duration", 0),
+                            getSharedPreferences("mf", MODE_PRIVATE).getBoolean("widget_playing", false),
+                            getSharedPreferences("mf", MODE_PRIVATE).getString("widget_cover", ""),
+                            getSharedPreferences("mf", MODE_PRIVATE).getString("widget_lyric", "")
+                        );
+                        toast("已刷新");
+                    }
+                }
+            }).show();
+    }
+
+    private void widgetConfigDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("小组件设置")
+            .setItems(new String[]{"显示歌词行", "显示进度条", "紧凑模式 (2x1)", "标准模式 (4x1)", "大卡模式 (4x2)"}, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+                    if (w == 0) sp.edit().putBoolean("widget_show_lyric", !sp.getBoolean("widget_show_lyric", true)).apply();
+                    else if (w == 1) sp.edit().putBoolean("widget_show_progress", !sp.getBoolean("widget_show_progress", true)).apply();
+                    else if (w >= 2) sp.edit().putString("widget_size", w == 2 ? "2x1" : w == 3 ? "4x1" : "4x2").apply();
+                    toast("已保存, 请重新添加小组件生效");
+                }
+            }).show();
+    }
+
+    private void podcastEpisodeDialog(String title, String feedUrl) {
+        new AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(new String[]{"播放最新一集", "查看所有剧集", "取消订阅"}, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == 0) {
+                        // 播放最新
+                        PodcastEngine.getLatestEpisode(MainActivity.this, feedUrl, new PodcastEngine.EpisodeCallback() {
+                            public void onEpisodesLoaded(final java.util.List<PodcastEngine.Episode> eps) {
+                                ui(new Runnable() { public void run() {
+                                    if (!eps.isEmpty() && eps.get(0).audioUrl != null) {
+                                        playUrl(eps.get(0).audioUrl, eps.get(0).title, eps.get(0).podcastTitle);
+                                    } else {
+                                        toast("无可播放链接");
+                                    }
+                                }});
+                            }
+                            public void onError(String err) { ui(new Runnable() { public void run() { toast("获取失败: " + err); }}); }
+                        });
+                    } else if (w == 1) {
+                        toast("剧集列表功能开发中...");
+                    } else if (w == 2) {
+                        PodcastEngine.removeFeed(MainActivity.this, feedUrl);
+                        toast("已取消订阅");
+                        setTab(4);
+                    }
+                }
+            }).show();
+    }
+
+    private void playLocalFile(String path, String title, String artist) {
+        Intent i = new Intent(this, PlayerService.class);
+        i.setAction("PLAY_FILE");
+        i.putExtra("path", path);
+        i.putExtra("title", title);
+        i.putExtra("artist", artist);
+        startService(i);
+    }
+
+    private void openFile(String path) {
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(Uri.fromFile(new File(path)), "audio/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { startActivity(intent); } catch (Exception e) { toast("无法打开"); }
+    }
+
+    /** 直接播放单个 URL (用于播客/外部源) */
+    void playUrl(String url, String title, String artist) {
+        try {
+            Intent i = new Intent(this, PlayerService.class);
+            i.putExtra("urls", new String[]{url});
+            i.putExtra("titles", new String[]{title});
+            i.putExtra("index", 0);
+            startService(i);
+            playingPos = 0;
+            nowBar.setText("缓冲 · " + title);
+            nowBar.setTextColor(C(C_GREEN));
+            addRecent(title, artist, url);
+            SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+            sp.edit().putInt("total_plays", sp.getInt("total_plays", 0) + 1).apply();
+            hideKb();
+        } catch (Throwable t) { toast("播放失败: " + t.getMessage()); }
+    }
+
+    // ══════ 处理搜索标签点击 ══════
+    // ... 现有 playAt 等方法保持不变
+
+    // ══════ 新增辅助方法 ══════
+    void switchTab(int idx) { setTab(idx); }
+    void focusSearch() { searchBox.requestFocus(); showKb(); }
+    void showKb() {
+        try { ((InputMethodManager) getSystemService(INPUT_METHOD_SERVICE))
+            .showSoftInput(searchBox, InputMethodManager.SHOW_IMPLICIT); } catch (Exception e) {}
+    }
+    void showQueueDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("播放队列")
+            .setMessage("当前队列: " + rows.size() + " 首\n正在播放: " + (playingPos >= 0 && playingPos < rows.size() ? (String) rows.get(playingPos)[0] : "无"))
+            .setPositiveButton("关闭", null).show();
+    }
+
+    void addToPlaylistDialog(final String title, final String sub, final String url) {
+        final ArrayList<String> playlists = loadEntries(PREF_PL);
+        final String[] names = playlists.toArray(new String[0]);
+        final boolean[] checked = new boolean[names.length];
+        new AlertDialog.Builder(this)
+            .setTitle("加入歌单: " + title)
+            .setMultiChoiceItems(names.length > 0 ? names : new String[]{"暂无歌单"}, checked, new DialogInterface.OnMultiChoiceClickListener() {
+                public void onClick(DialogInterface d, int w, boolean c) { checked[w] = c; }
+            })
+            .setPositiveButton("添加", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    for (int i = 0; i < checked.length; i++) if (checked[i]) {
+                        String pl = names[i];
+                        ArrayList<String> plItems = loadEntries(PREF_PL + "_" + pl);
+                        String e = title + "\u0001" + sub + "\u0001" + url;
+                        if (!plItems.contains(e)) { plItems.add(0, e); saveEntries(PREF_PL + "_" + pl, plItems); }
+                    }
+                    toast("已添加到选中歌单");
+                }
+            })
+            .setNegativeButton("取消", null).show();
     }
 }
