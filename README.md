@@ -1,4 +1,13 @@
-# MusicFusion v13 "Cosmic" 🎵
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue">
+  <img src="https://img.shields.io/badge/Android-21%2B-green">
+  <img src="https://img.shields.io/badge/Java-8-orange">
+  <img src="https://img.shields.io/badge/tracks-9M%2B-brightgreen">
+  <img src="https://img.shields.io/badge/radio-2945-blue">
+  <img src="https://img.shields.io/badge/sources-4-yellow">
+  <img src="https://img.shields.io/github/stars/ice-wocker/MusicFusion?style=social">
+</p>
+
 
 一站式聚合音乐播放器 — 36 源文件 / 9000+ 行 / <250KB / 纯 Java / MIT / 全部合法音源
 
