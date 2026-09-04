@@ -1,0 +1,65 @@
+name: Build MusicFusion
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          android-version: '30'
+          sdk-root: ${{ github.workspace }}/android-sdk
+          build-tools-version: '30.0.3'
+          platforms: 'android-30'
+
+      - name: Build APK
+        run: |
+          cd ${{ github.workspace }}
+          export ANDROID_HOME=${{ github.workspace }}/android-sdk
+          export PATH=$ANDROID_HOME/build-tools/30.0.3:$PATH
+          aapt package -f -m -J build/gen -M AndroidManifest.xml -S res -I $ANDROID_HOME/platforms/android-30/android.jar -F build/app-unsigned.apk
+          find src -name "*.java" > build/sources.txt
+          javac -source 1.8 -target 1.8 -bootclasspath $ANDROID_HOME/platforms/android-30/android.jar -d build/classes @build/sources.txt
+          d8 --output build/ build/classes/com/musicfusion/app/*.class
+          cd build && zip -j ../build/app-unsigned.apk classes.dex
+          cd ..
+          cp build/app-unsigned.apk musicfusion-unsigned.apk
+
+      - name: Sign APK
+        uses: r0adik/sign-action@v1
+        with:
+          signing-key-base64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          key-store-password: ${{ secrets.KEY_STORE_PASSWORD }}
+          key-password: ${{ secrets.KEY_PASSWORD }}
+          apk-path: musicfusion-unsigned.apk
+          output-path: musicfusion.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musicfusion-apk
+          path: musicfusion.apk
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: musicfusion.apk
+          generate_release_notes: true
