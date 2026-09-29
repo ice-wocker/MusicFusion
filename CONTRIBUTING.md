@@ -1,70 +1,30 @@
-# Contributing to MusicFusion
+# 贡献指南
 
-We love PRs! Here's how to get started.
+感谢你愿意花时间改进这个项目。提 Issue 或 PR 之前，先花两分钟看一下下面的约定，能省掉大量来回。
 
-## Development Setup
+## 提 Issue
 
-```bash
-git clone https://github.com/ice-wocker/MusicFusion
-cd MusicFusion
+- **Bug**：请说明设备型号、Android 版本、应用版本，以及可复现的步骤。能附日志或录屏最好。
+- **功能建议**：请说清你要解决的**实际问题**，而不是直接给方案。这个项目优先做"断网能用、依赖最少"的功能。
+- **提问**：先在已有 Issue 里搜一下，很多问题已经有答案。
 
-# Build (uses Termux + android-tools + apkbuild)
-./build.sh
+## 提 PR
 
-# Or just check Java syntax
-javac -source 1.8 -d /tmp/check src/com/musicfusion/app/*.java
-```
+1. Fork 本仓库，从默认分支拉出你的工作分支（如 `fix/xxx`、`feat/xxx`）。
+2. 保持改动**聚焦**：一个 PR 只做一件事，不要顺手格式化整个文件。
+3. 提交信息写清楚"做了什么、为什么"，不要只写 `update`、`fix bug`。
+4. 如果改动涉及构建（Gradle / 脚本），请确认本地能编译通过。
+5. 在 PR 描述里说明：动机、改动点、如何验证、有无副作用。
 
-## How to Add a New Music Source
+## 项目原则
 
-This is the most common contribution. Each source implements `Source.java`:
+这些是项目的取舍底线，PR 如果与之冲突，通常会被要求调整：
 
-```java
-package com.musicfusion.app;
+- **不引第三方依赖**：能自己写的，不引库。新增依赖需要非常充分的理由。
+- **离线优先**：不联网也要能用，不强制登录，不追踪用户。
+- **体积敏感**：安装包越小越好，改动请留意体积变化。
+- **隐私默认安全**：不申请用不到的权限，数据尽量留在设备上。
 
-public interface Source {
-    String getName();
-    String getId();
+## 授权
 
-    // Search returns list of tracks
-    void search(String query, int limit, SearchCallback callback);
-
-    // Stream a track
-    void stream(String trackId, StreamCallback callback);
-}
-```
-
-### Example: Adding a Subsonic Source
-
-1. Create `src/com/musicfusion/app/Subsonic.java`:
-```java
-public class Subsonic implements Source {
-    @Override public String getName() { return "Subsonic"; }
-    @Override public String getId() { return "subsonic"; }
-    // implement search() and stream() using HttpURLConnection
-}
-```
-
-2. Register in `MainActivity.java`:
-```java
-sources.add(new Subsonic());
-```
-
-## Code Style
-
-- Pure Java 8 (no Kotlin)
-- 0 dependencies
-- 4-space indent
-- Use `final` wherever possible
-- Prefer `HttpURLConnection`
-
-## Testing
-
-Before submitting a PR:
-1. `./build.sh` must succeed
-2. App must launch without crash
-3. New source returns real results
-
-## License
-
-By contributing, you agree your code is MIT licensed.
+提交 PR 即表示你同意你的贡献以本仓库的 LICENSE 授权发布。
