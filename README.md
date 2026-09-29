@@ -183,7 +183,7 @@
 ### Install (prebuilt APK)
 ```bash
 # Download latest release
-wget https://github.com/ice-wocker/MusicFusion/releases/download/v13/musicfusion.apk
+wget https://github.com/ice-wocker/MusicFusion/releases/latest/download/musicfusion.apk
 
 # Or via ADB
 adb install musicfusion.apk
@@ -193,10 +193,12 @@ adb install musicfusion.apk
 ```bash
 git clone https://github.com/ice-wocker/MusicFusion
 cd MusicFusion
-./build.sh    # produces APK in build/ directory
+ANDROID_HOME=/path/to/android-sdk ./build.sh   # 产出 musicfusion.apk
 ```
 
-> **Note**: Build requires Termux + `android-tools` + `apkbuild`. See [BUILD.md](BUILD.md).
+要求：**JDK 17 + Android SDK**（build-tools / platforms 任一版本均可，脚本自动挑选）。
+脚本不再依赖 Termux——`aapt2` / `d8` / `zipalign` / `apksigner` 全部取自
+`ANDROID_HOME`，Windows / macOS / Linux 的 CI 都能跑。
 
 ### First-run
 1. Open app → tap search → pick any source (e.g. Audius)
