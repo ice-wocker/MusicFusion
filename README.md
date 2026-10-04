@@ -5,6 +5,8 @@
 </p>
 
 <p align="center">
+  <img src="https://github.com/ice-wocker/MusicFusion/actions/workflows/build.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/github/v/release/ice-wocker/MusicFusion" alt="Release">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
   <img src="https://img.shields.io/badge/Android-21%2B-green" alt="Android 21+">
   <img src="https://img.shields.io/badge/Java-8-orange" alt="Java 8">
@@ -12,7 +14,7 @@
   <img src="https://img.shields.io/badge/dependencies-0-success" alt="0 deps">
   <img src="https://img.shields.io/badge/tracks-9M%2B-brightgreen" alt="9M+ tracks">
   <img src="https://img.shields.io/badge/radio-2945-blue" alt="2945 radio">
-  <img src="https://img.shields.io/badge/sources-36-orange" alt="36 sources">
+  <img src="https://img.shields.io/badge/sources-6-orange" alt="6 sources">
   <img src="https://img.shields.io/badge/privacy-100%25-success" alt="100% private">
   <img src="https://img.shields.io/github/stars/ice-wocker/MusicFusion?style=social" alt="Stars">
   <img src="https://img.shields.io/github/forks/ice-wocker/MusicFusion?style=social" alt="Forks">
@@ -21,7 +23,7 @@
 <h1 align="center">MusicFusion</h1>
 
 <p align="center">
-  <b>36 sources · 9M+ tracks · 2,945 radio · 0 ads · 0 tracking</b><br>
+  <b>6 sources · 9M+ tracks · 2,945 radio · 0 ads · 0 tracking</b><br>
   <sub>The only Android music player you'll ever need</sub>
 </p>
 
@@ -47,7 +49,7 @@
 | **Privacy** | Tracks you + sells data | **Zero tracking** |
 | **Offline** | Premium only | **Always free** |
 | **Login required** | Yes | **No signup** |
-| **Source lock-in** | One provider | **36 sources** |
+| **Source lock-in** | One provider | **6 sources** |
 | **Battery drain** | High (DRM, telemetry) | **Minimal** |
 | **APK size** | 50-100MB | **<250KB** |
 | **Reverse engineering** | Impossible (DRM) | **Open source** |
@@ -67,7 +69,7 @@
 - **Audio focus** (duck when other apps play)
 
 ### 📚 Library
-- **9M+ tracks** from 36 sources
+- **9M+ tracks** from 6 sources
 - **Local files** (mp3, flac, ogg, opus, m4a, wav)
 - **Smart playlists** with auto-generation
 - **Favorites, history, queue**
@@ -75,19 +77,16 @@
 - **Search** across local + online (with source filter)
 - **MusicBrainz metadata** auto-enrichment
 
-### 🌐 Online Sources (36)
+### 🌐 Online Sources (6)
+
+> 口径说明：以 `src/com/musicfusion/app/` 下实际存在的 source 实现与 `SearchFilters` / 搜索筛选中的 6 个来源为准。
+
 - **Audius** — decentralized, crypto-paid artists
 - **Internet Archive** — public domain + CC
-- **RadioBrowser** — 2,945+ live radio stations
-- **SomaFM** — 40+ listener-supported commercial-free
-- **CC Trax** — Creative Commons
-- **Free Music Archive** — public domain
-- **Jamendo** — independent artists
-- **Mixcloud** — DJ mixes & radio shows
-- **SoundCloud** — via public API
-- **Pixabay Music** — royalty-free
-- **ccMixter** — remix community
-- + 25 more sources
+- **RadioBrowser** — live radio stations
+- **SomaFM** — listener-supported commercial-free
+- **Openverse** — CC-licensed audio search with license/file-type filters
+- **Jamendo** — independent artists (requires free `client_id`, see in-app settings)
 
 ### ⬇️ Download & Offline
 - **Download manager** (pause/resume/queue, MediaStore API 29+)
@@ -127,7 +126,7 @@
 - **Network requests only to whitelisted sources**
 - **Open source** — verify yourself
 
-## 🏗️ Architecture (36 source files, 9000+ lines)
+## 🏗️ Architecture (40 source files, 11000+ lines)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -143,9 +142,9 @@
        │
        ▼
 ┌────────────────────────────────────────────────────────────────┐
-│                  Source Layer (36 implementations)             │
+│                  Source Layer (6 implementations)              │
 ├─────────────────────┬──────────────────┬───────────────────────┤
-│ Audius  │ Archive  │ RadioBrowser │ SomaFM │ ...32 more     │
+│ Audius │ Archive │ RadioBrowser │ SomaFM │ Openverse │ Jamendo │
 │ P2P      │ HTTP     │ HTTP+JSON     │ HTTP   │                │
 └────┬────┴─────┬────┴───────┬────────┴────┬──┘                │
      │          │            │            │                    │
@@ -283,13 +282,7 @@ Copyright (c) 2026 ice-wocker
 
 ## ⭐ Star History
 
-<a href="https://star-history.com/#ice-wocker/MusicFusion&Timeline">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ice-wocker/MusicFusion&type=Timeline&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=ice-wocker/MusicFusion&type=Timeline" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=ice-wocker/MusicFusion&type=Timeline" />
-  </picture>
-</a>
+[![Star History Chart](https://api.star-history.com/svg?repos=ice-wocker/MusicFusion&type=Date)](https://star-history.com/#ice-wocker/MusicFusion&Date)
 
 ---
 
